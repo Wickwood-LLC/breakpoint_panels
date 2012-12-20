@@ -1,0 +1,12 @@
+; $Id:
+name = Breakpoint Panels
+description = A custom module to allow different panes for breakpoints
+core = 7.x
+dependencies[] = ctools
+dependencies[] = panels
+dependencies[] = libraries
+dependencies[] = page_manager
+dependencies[] = breakpoints
+package = User Interface
+core = 7.x
+version = "7.x-1.0"
