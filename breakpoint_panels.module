@@ -14,11 +14,12 @@ function breakpoint_panels_menu() {
     'page callback' => 'drupal_get_form',
     'page arguments' => array('breakpoint_panels_settings'),
     'access arguments' => array('administer breakpoints'),
+    'type' => MENU_NORMAL_ITEM,
   );
-  $items['breakpoint_panels/%ctools_js/settings/form'] = array(
+  $items['breakpoint_panels/%ctools_js/settings/form/%/%'] = array(
     'title' => t('Breakpoints Pane'),
     'page callback' => 'breakpoint_panels_modal_popup',
-    'page arguments' => array(1),
+    'page arguments' => array(1,4,5),
     'access callback' => TRUE,
     'type' => MENU_CALLBACK,
   );
@@ -29,70 +30,149 @@ function breakpoint_panels_menu() {
 /**
  * Settings form callback.
  */
-function breakpoint_panels_pane_settings_form($style_settings) {
+function breakpoint_panels_pane_settings_form($style_settings, $form_state) {
   $form = array();
   $bps = breakpoints_breakpoint_load_all_active();
+  $pid = $form_state['pane_id'];
+  $did = $form_state['display_id'];
+  $panel = panels_load_display($did);
+  $pane = $panel->content[$pid];
   foreach ($bps as $name => $bp) {
     $form['pane_' . drupal_clean_css_identifier($bp->name)] = array(
       '#type' => 'checkbox',
       '#title' => filter_xss(t('Display ' . $bp->name)),
-      '#default_value' => (isset($style_settings['pane_' . $name])) ? $style_settings['pane_' . $name] : TRUE
+      '#default_value' => ($pane->configuration['breakpoints']) ?  $pane->configuration['breakpoints'][$bp->name] : TRUE
     );
   }
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+  );
 
+  $form['pane_id'] = array(
+    '#type' => 'hidden',
+    '#value' => $pid,
+  );
+  $form['display_id'] = array(
+    '#type' => 'hidden',
+    '#value' => $did,
+  );
   return $form;
 }
 
+function breakpoint_panels_pane_settings_form_submit(&$form, &$form_state) {
+  $display_id = $form['display_id']['#value'];
+  $pane_id = $form['pane_id']['#value'];
+  $panel = panels_load_display($display_id);
+  $pane = $panel->content[$pane_id];
+  $bps = breakpoints_breakpoint_load_all_active();
+  $pane->configuration['breakpoints'] = array();
+  foreach ($bps as $breakpoint) {
+    if (!$breakpoint) {
+      continue;
+    }
+    $pane->configuration['breakpoints'][$breakpoint->name] = $form['pane_' . $breakpoint->name]['#value'];
+  }
+  $panel->content[$pane_id] = $pane;
+  panels_save_display($panel);
+  dpm($panel);
+  $form_state['message'] = t('fixed');
+
+}
 
 //Testing this new hook
 function breakpoint_panels_panels_ipe_pane_links_alter(&$links, $pane, $display) {
-  dpm($links);
-  ctools_include('ajax');
-  ctools_include('modal');
-  ctools_modal_add_js();
   $links['global'] = array(
     'title' => t('Breakpoints!'),
-    'href' => 'breakpoint_panels/nojs/settings/form',
+    'href' => 'breakpoint_panels/nojs/settings/form/' . $pane['pane']->did . '/' . $pane['pane']->pid,
     'attributes' => array(
-      'class' => 'ctools-use-modal',
+      'class' => 'ctools-use-modal ctools-modal-modal-popup-small',
     ),
   );
 }
 
 
-function breakpoint_panels_modal_popup($js = NULL) {
+function breakpoint_panels_modal_popup($js = NULL, $dis_id, $pane_id) {
   // degrade half-assed to no js
   if(!$js) {
-    return drupal_get_form('breakpoint_panels_pane_settings_form');
+    return drupal_get_form('breakpoint_panels_pane_settings_form', null, $pane_id);
   }
-  // adelante!
   ctools_include('modal');
   ctools_include('ajax');
   $form_state = array(
     'title' => t('Breakpoints'),
     'ajax' => TRUE,
+    'pane_id' => $pane_id,
+    'display_id' => $dis_id,
   );
   $output = ctools_modal_form_wrapper('breakpoint_panels_pane_settings_form', $form_state);
   if (!empty($form_state['executed'])) {
     // We'll just overwrite the form output if it was successful.
     $output = array();
-    $output[] = ctools_modal_command_dismiss(t('Success!'));
+    //$output[] = ctools_modal_command_dismiss(t('Success!'));
     // If you want to leave a message and links:
-    //$output[] = ctools_modal_command_display(t('Login Success'), '<div class="modal-message">Login successful. 
-                      //    <a href="/modal/nojs/test">Go back</a>.</div>');
+    $output[] = ctools_modal_command_display(t('Login Success'), '<div class="modal-message">Login successful. <a href="/modal/nojs/test">Go back</a>.</div>');
   }
   print ajax_render($output);
   exit;
 }
 
 /**
- * Implements hook_ctools_plugin_directory().
+ * Render callback.
+ *
+ * @ingroup themeable
  */
-function breakpoint_panels_ctools_plugin_directory($owner, $plugin_type) {
-  if ($owner == 'panels') {
-    return "plugins/$plugin_type";
+function theme_breakpoint_panels_render_pane($vars) {
+  if ($path = libraries_get_path('enquire.js')) {
+    drupal_add_js($path . '/enquire.min.js');
   }
+  if ($path = libraries_get_path('matchMedia.js')) {
+    drupal_add_js($path . '/matchMedia.js');
+  }
+  drupal_add_js(drupal_get_path('module', 'breakpoint_panels') . '/plugins/styles/breakpoint_pane/breakpoint_pane.js');
+  $content = $vars['content'];
+  $pane = $vars['pane'];
+  $display = $vars['display'];
+  $settings = $vars['settings'];
+
+  if (empty($content->content)) {
+    return;
+  }
+  $bps = breakpoints_breakpoint_load_all_active();
+  $ipemessage = "";
+  $hides = array();
+  $css = "";
+  foreach ($bps as $name => $bp) {
+    $clean = drupal_clean_css_identifier($bp->name);
+    if (empty($settings['pane_' . $clean])) {
+      array_push($hides, 'hide_' . $clean);
+      $ipemessage .= '<br />Hidden from ' . $bp->name;
+    }
+    $css .= "@media " . $bp->breakpoint . " { " . '.hide_' . $clean . " { display:none } }\n .panels-ipe-editing " . '.hide_' . $clean . " { display:block }\n";
+  }
+  drupal_add_css($css, array('group' => CSS_DEFAULT, 'type' => 'inline'));
+  $ipemessage .= (!empty($ipemessage)) ? '<br /><br />' : '';
+
+  $themed = theme('panels_pane', array('content' => $content, 'pane' => $pane, 'display' => $display));
+  $classes= "";
+  foreach ($hides as $hide) {
+    $classes .= ' ' . $hide;
+  }
+  $output = "<div class='$classes'>";$output .= '<div class="ipemessage">' . $ipemessage . '</div>';
+  $output .= $themed;
+  $output .= '</div>';
+  drupal_add_css(drupal_get_path('module', 'breakpoint_panels') . '/plugins/styles/breakpoint_pane/breakpoint_pane.css', array('type' => 'file', 'media' => 'screen'));
+  return $output;
 }
+
+// /**
+//  * Implements hook_ctools_plugin_directory().
+//  */
+// function breakpoint_panels_ctools_plugin_directory($owner, $plugin_type) {
+//   if ($owner == 'panels') {
+//     return "plugins/$plugin_type";
+//   }
+// }
 
 /**
  *
@@ -100,10 +180,8 @@ function breakpoint_panels_ctools_plugin_directory($owner, $plugin_type) {
  */
 function breakpoint_panels_theme() {
   $theme = array();
-  $theme['breakpoint_panels_breakpoint_pane_style_render_panel'] = array(
+  $theme['theme_breakpoint_panels_render_pane'] = array(
     'arguments' => array('content' => NULL, 'pane' => NULL, 'display' => NULL),
-    'path' => 'plugins/styles/breakpoint_pane/breakpoint_pane.inc',
-
   );
   return $theme;
 }
