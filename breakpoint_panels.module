@@ -15,7 +15,74 @@ function breakpoint_panels_menu() {
     'page arguments' => array('breakpoint_panels_settings'),
     'access arguments' => array('administer breakpoints'),
   );
+  $items['breakpoint_panels/%ctools_js/settings/form'] = array(
+    'title' => t('Breakpoints Pane'),
+    'page callback' => 'breakpoint_panels_modal_popup',
+    'page arguments' => array(1),
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+
   return $items;
+}
+
+/**
+ * Settings form callback.
+ */
+function breakpoint_panels_pane_settings_form($style_settings) {
+  $form = array();
+  $bps = breakpoints_breakpoint_load_all_active();
+  foreach ($bps as $name => $bp) {
+    $form['pane_' . drupal_clean_css_identifier($bp->name)] = array(
+      '#type' => 'checkbox',
+      '#title' => filter_xss(t('Display ' . $bp->name)),
+      '#default_value' => (isset($style_settings['pane_' . $name])) ? $style_settings['pane_' . $name] : TRUE
+    );
+  }
+
+  return $form;
+}
+
+
+//Testing this new hook
+function breakpoint_panels_panels_ipe_pane_links_alter(&$links, $pane, $display) {
+  dpm($links);
+  ctools_include('ajax');
+  ctools_include('modal');
+  ctools_modal_add_js();
+  $links['global'] = array(
+    'title' => t('Breakpoints!'),
+    'href' => 'breakpoint_panels/nojs/settings/form',
+    'attributes' => array(
+      'class' => 'ctools-use-modal',
+    ),
+  );
+}
+
+
+function breakpoint_panels_modal_popup($js = NULL) {
+  // degrade half-assed to no js
+  if(!$js) {
+    return drupal_get_form('breakpoint_panels_pane_settings_form');
+  }
+  // adelante!
+  ctools_include('modal');
+  ctools_include('ajax');
+  $form_state = array(
+    'title' => t('Breakpoints'),
+    'ajax' => TRUE,
+  );
+  $output = ctools_modal_form_wrapper('breakpoint_panels_pane_settings_form', $form_state);
+  if (!empty($form_state['executed'])) {
+    // We'll just overwrite the form output if it was successful.
+    $output = array();
+    $output[] = ctools_modal_command_dismiss(t('Success!'));
+    // If you want to leave a message and links:
+    //$output[] = ctools_modal_command_display(t('Login Success'), '<div class="modal-message">Login successful. 
+                      //    <a href="/modal/nojs/test">Go back</a>.</div>');
+  }
+  print ajax_render($output);
+  exit;
 }
 
 /**
@@ -26,8 +93,6 @@ function breakpoint_panels_ctools_plugin_directory($owner, $plugin_type) {
     return "plugins/$plugin_type";
   }
 }
-
-
 
 /**
  *
@@ -47,7 +112,7 @@ function breakpoint_panels_panels_pre_render($display) {
   $data = NULL;
    // Check if there is a valid resolution stored in the cookie.
   if (isset($_COOKIE['breakpoints'])) {
-    $data = parseBPCookie($_COOKIE['breakpoints']);
+    $data = parseRPCookie($_COOKIE['breakpoints']);
   }
   if ($data) {
     drupal_add_js(array(
@@ -150,12 +215,12 @@ function breakpoint_panels_panels_pre_render($display) {
 
       if ($match) {
         if (variable_get('breakpoint_panels_load_hidden', "no")=="yes" || (variable_get('breakpoint_panels_load_hidden_admins', "no")=="yes" && user_access('administer breakpoints'))) {
-          $bpadmin = TRUE;
+          $rpadmin = TRUE;
         }
         foreach ($display->content as $k => $pane) {
           if (isset($pane->style['settings']['pane_' . drupal_clean_css_identifier($breakpoint->name)])
           && $pane->style['settings']['pane_' . drupal_clean_css_identifier($breakpoint->name)] == 0
-          && !isset($bpadmin)) {
+          && !isset($rpadmin)) {
             $pane->shown = 0;
           }
         }
@@ -215,7 +280,7 @@ function parseBPBreakpoint($query) {
   return count($point) ? $point : FALSE;
 }
 
-function parseBPCookie($cookie) {
+function parseRPCookie($cookie) {
   $data = array();
 
   $parts = explode('|', $cookie);
