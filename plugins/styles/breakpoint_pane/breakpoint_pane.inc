@@ -24,7 +24,7 @@ function theme_breakpoint_panels_breakpoint_pane_style_render_pane($vars) {
   if ($path = libraries_get_path('matchMedia.js')) {
     drupal_add_js($path . '/matchMedia.js');
   }
-  drupal_add_js(drupal_get_path('module', 'breakpoint_panels') . '/plugins/styles/breakpoint_pane/breakpoint_pane.js');
+  drupal_add_js(drupal_get_path('module', 'breakpoint_panels') . '/js/breakpoint_pane.js');
   $content = $vars['content'];
   $pane = $vars['pane'];
   $display = $vars['display'];
