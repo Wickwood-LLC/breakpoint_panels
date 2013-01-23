@@ -101,9 +101,6 @@ function breakpoint_panels_panels_ipe_pane_links_alter(&$links, $pane, $display)
 
 function breakpoint_panels_modal_popup($js = NULL, $dis_id, $pane_id) {
   // degrade half-assed to no js
-  if(!$js) {
-    return drupal_get_form('breakpoint_panels_pane_settings_form', null, $pane_id);
-  }
   ctools_include('modal');
   ctools_include('ajax');
   $form_state = array(
@@ -112,13 +109,16 @@ function breakpoint_panels_modal_popup($js = NULL, $dis_id, $pane_id) {
     'pane_id' => $pane_id,
     'display_id' => $dis_id,
   );
+  if(!$js) {
+    return drupal_get_form('breakpoint_panels_pane_settings_form', null, $pane_id);
+  }
   $output = ctools_modal_form_wrapper('breakpoint_panels_pane_settings_form', $form_state);
   if (!empty($form_state['executed'])) {
     // We'll just overwrite the form output if it was successful.
     $output = array();
-    //$output[] = ctools_modal_command_dismiss(t('Success!'));
+    $output[] = ctools_modal_command_dismiss(t('Success!'));
     // If you want to leave a message and links:
-    $output[] = ctools_modal_command_display(t('Login Success'), '<div class="modal-message">Login successful. <a href="/modal/nojs/test">Go back</a>.</div>');
+    //$output[] = ctools_modal_command_display(t('Login Success'), '<div class="modal-message">Login successful. <a href="/modal/nojs/test">Go back</a>.</div>');
   }
   print ajax_render($output);
   exit;
@@ -465,19 +465,8 @@ function breakpoint_panels_settings($form, $form_state) {
     '#default_value' => variable_get('breakpoint_panels_load_hidden', "no"),
     '#description' => t('If selected, content will be loaded, but hidden via css for development purposes.'),
   );
-  $form['breakpoint_panels_breakpoint_reload'] = array(
-    '#title' => t('Auto Reload'),
-    '#type' => 'radios',
-    '#options' => array(
-      "no" => t("Don't Auto Reload"),
-      "yes" => t('Auto Load'),
-    ),
-    '#default_value' => variable_get('breakpoint_panels_breakpoint_reload', "no"),
-    '#description' => t('Window will be reloaded when a breakpoint is activated')
-  );
   return system_settings_form($form);
 }
-
 /**
  * Menu handler to serve individual panel-panes via AJAX.
  *
