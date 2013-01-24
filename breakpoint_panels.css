@@ -36,3 +36,11 @@
   margin: 0 10px;
   padding: 0 0.8em 2px 0.8em;
 }
+.toggleResponsive.active {
+  background-image: linear-gradient(bottom, #616161 0%, #333333 100%);
+  background-image: -o-linear-gradient(bottom, #616161 0%, #333333 100%);
+  background-image: -moz-linear-gradient(bottom, #616161 0%, #333333 100%);
+  background-image: -webkit-linear-gradient(bottom, #616161 0%, #333333 100%);
+  background-image: -ms-linear-gradient(bottom, #616161 0%, #333333 100%);
+  background-image: -webkit-gradient( linear, left bottom, left top, color-stop(0, #616161), color-stop(1, #333333) );
+}

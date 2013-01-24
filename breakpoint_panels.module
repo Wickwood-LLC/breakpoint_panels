@@ -43,6 +43,7 @@ function breakpoint_panels_pane_settings_form($style_settings, $form_state) {
   $pid = $form_state['pane_id'];
   $did = $form_state['display_id'];
   $panel = panels_load_display($did);
+  dpm($panel);
   $pane = $panel->content[$pid];
   foreach ($bps as $name => $bp) {
     $form['pane_' . drupal_clean_css_identifier($bp->name)] = array(
@@ -82,9 +83,7 @@ function breakpoint_panels_pane_settings_form_submit(&$form, &$form_state) {
   }
   $panel->content[$pane_id] = $pane;
   panels_save_display($panel);
-  dpm($panel);
   $form_state['message'] = t('fixed');
-
 }
 
 //Testing this new hook
@@ -101,8 +100,6 @@ function breakpoint_panels_panels_ipe_pane_links_alter(&$links, $pane, $display)
 
 function breakpoint_panels_modal_popup($js = NULL, $dis_id, $pane_id) {
   // degrade half-assed to no js
-  ctools_include('modal');
-  ctools_include('ajax');
   $form_state = array(
     'title' => t('Breakpoints'),
     'ajax' => TRUE,
@@ -112,206 +109,23 @@ function breakpoint_panels_modal_popup($js = NULL, $dis_id, $pane_id) {
   if(!$js) {
     return drupal_get_form('breakpoint_panels_pane_settings_form', null, $pane_id);
   }
+  ctools_include('modal');
+  ctools_include('ajax');
   $output = ctools_modal_form_wrapper('breakpoint_panels_pane_settings_form', $form_state);
   if (!empty($form_state['executed'])) {
     // We'll just overwrite the form output if it was successful.
     $output = array();
     $output[] = ctools_modal_command_dismiss(t('Success!'));
-    // If you want to leave a message and links:
-    //$output[] = ctools_modal_command_display(t('Login Success'), '<div class="modal-message">Login successful. <a href="/modal/nojs/test">Go back</a>.</div>');
   }
   print ajax_render($output);
   exit;
 }
 
-/**
- * Render callback.
- *
- * @ingroup themeable
- */
-function theme_breakpoint_panels_render_pane($vars) {
-  if ($path = libraries_get_path('enquire.js')) {
-    drupal_add_js($path . '/enquire.min.js');
-  }
-  if ($path = libraries_get_path('matchMedia.js')) {
-    drupal_add_js($path . '/matchMedia.js');
-  }
-  drupal_add_js(drupal_get_path('module', 'breakpoint_panels') . '/plugins/styles/breakpoint_pane/breakpoint_pane.js');
-  $content = $vars['content'];
-  $pane = $vars['pane'];
-  $display = $vars['display'];
-  $settings = $vars['settings'];
-
-  if (empty($content->content)) {
-    return;
-  }
-  $bps = breakpoints_breakpoint_load_all_active();
-  $ipemessage = "";
-  $hides = array();
-  $css = "";
-  foreach ($bps as $name => $bp) {
-    $clean = drupal_clean_css_identifier($bp->name);
-    if (empty($settings['pane_' . $clean])) {
-      array_push($hides, 'hide_' . $clean);
-      $ipemessage .= '<br />Hidden from ' . $bp->name;
-    }
-    $css .= "@media " . $bp->breakpoint . " { " . '.hide_' . $clean . " { display:none } }\n .panels-ipe-editing " . '.hide_' . $clean . " { display:block }\n";
-  }
-  drupal_add_css($css, array('group' => CSS_DEFAULT, 'type' => 'inline'));
-  $ipemessage .= (!empty($ipemessage)) ? '<br /><br />' : '';
-
-  $themed = theme('panels_pane', array('content' => $content, 'pane' => $pane, 'display' => $display));
-  $classes= "";
-  foreach ($hides as $hide) {
-    $classes .= ' ' . $hide;
-  }
-  $output = "<div class='$classes'>";$output .= '<div class="ipemessage">' . $ipemessage . '</div>';
-  $output .= $themed;
-  $output .= '</div>';
-  drupal_add_css(drupal_get_path('module', 'breakpoint_panels') . '/plugins/styles/breakpoint_pane/breakpoint_pane.css', array('type' => 'file', 'media' => 'screen'));
-  return $output;
-}
-
-// /**
-//  * Implements hook_ctools_plugin_directory().
-//  */
-// function breakpoint_panels_ctools_plugin_directory($owner, $plugin_type) {
-//   if ($owner == 'panels') {
-//     return "plugins/$plugin_type";
-//   }
-// }
-
-/**
- *
- * @see HOOK_theme()
- */
-function breakpoint_panels_theme() {
-  $theme = array();
-  $theme['theme_breakpoint_panels_render_pane'] = array(
-    'arguments' => array('content' => NULL, 'pane' => NULL, 'display' => NULL),
-  );
-  return $theme;
-}
 
 function breakpoint_panels_panels_pre_render($display) {
-  $data = NULL;
-   // Check if there is a valid resolution stored in the cookie.
-  if (isset($_COOKIE['breakpoints'])) {
-    $data = parseRPCookie($_COOKIE['breakpoints']);
-  }
-  if ($data) {
-    drupal_add_js(array(
-      'breakpoint_panels_breakpoint' => getBPConfig(),
-    ), 'setting');
-    $bps = breakpoints_breakpoint_load_all_active();
-    foreach ($bps as $breakpoint) {
-      if (!$breakpoint) {
-        continue;
-      }
-
-      $conditions = parseBPBreakpoint($breakpoint->breakpoint);
-      if (!$conditions) {
-        continue;
-      }
-      $matches = array();
-      $match = TRUE;
-      foreach ($conditions as $cmd => $value) {
-
-        switch ($cmd) {
-          case 'width':
-            $match = $data['width'] === $value;
-            break;
-
-          case 'min-width':
-            $match = $data['width'] >= $value;
-            break;
-
-          case 'max-width':
-            $match = $data['width'] <= $value;
-            break;
-
-          case 'height':
-            $match = $data['height'] === $value;
-            break;
-
-          case 'min-height':
-            $match = $data['height'] >= $value;
-            break;
-
-          case 'max-height':
-            $match = $data['height'] <= $value;
-            break;
-
-          case 'device-width':
-            $match = $data['device-width'] === $value;
-            break;
-
-          case 'min-device-width':
-            $match = $data['device-width'] >= $value;
-            break;
-
-          case 'max-device-width':
-            $match = $data['device-width'] <= $value;
-            break;
-
-          case 'device-height':
-            $match = $data['device-height'] === $value;
-            break;
-
-          case 'min-device-height':
-            $match = $data['device-height'] >= $value;
-            break;
-
-          case 'max-device-height':
-            $match = $data['device-height'] <= $value;
-            break;
-
-          case 'aspect-ratio':
-            $match = $data['width'] / $data['height'] === $value;
-            break;
-
-          case 'min-aspect-ratio':
-            $match = $data['width'] / $data['height'] >= $value;
-            break;
-
-          case 'max-aspect-ratio':
-            $match = $data['width'] / $data['height'] <= $value;
-            break;
-
-          case 'device-aspect-ratio':
-            $match = $data['device-width'] / $data['device-height'] === $value;
-            break;
-
-          case 'min-device-aspect-ratio':
-            $match = $data['device-width'] / $data['device-height'] >= $value;
-            break;
-
-          case 'max-device-aspect-ratio':
-            $match = $data['device-width'] / $data['device-height'] <= $value;
-            break;
-
-          default:
-            // Unsupported.
-            break;
-        }
-
-        if (!$match) break;
-      }
-
-      if ($match) {
-        if (variable_get('breakpoint_panels_load_hidden', "no")=="yes" || (variable_get('breakpoint_panels_load_hidden_admins', "no")=="yes" && user_access('administer breakpoints'))) {
-          $rpadmin = TRUE;
-        }
-        foreach ($display->content as $k => $pane) {
-          if (isset($pane->style['settings']['pane_' . drupal_clean_css_identifier($breakpoint->name)])
-          && $pane->style['settings']['pane_' . drupal_clean_css_identifier($breakpoint->name)] == 0
-          && !isset($rpadmin)) {
-            $pane->shown = 0;
-          }
-        }
-      }
-    }
-  }
+  drupal_add_js(array(
+    'breakpoint_panels_breakpoint' => getBPConfig(),
+  ), 'setting');
 }
 
 function parseBPBreakpoint($query) {
@@ -365,40 +179,6 @@ function parseBPBreakpoint($query) {
   return count($point) ? $point : FALSE;
 }
 
-function parseRPCookie($cookie) {
-  $data = array();
-
-  $parts = explode('|', $cookie);
-
-  if (count($parts) !== 2) {
-    return FALSE;
-  }
-
-  $resParts = explode('x', $parts[0]);
-  if (!(count($resParts) === 2
-    && is_numeric($resParts[0])
-    && is_numeric($resParts[1]))
-  ) {
-    return FALSE;
-  }
-
-  $data['width'] = (int) $resParts[0];
-  $data['height'] = (int) $resParts[1];
-
-  $resParts = explode('x', $parts[1]);
-  if (!(count($resParts) === 2
-    && is_numeric($resParts[0])
-    && is_numeric($resParts[1]))
-  ) {
-    return FALSE;
-  }
-
-  $data['device-width'] = (int) $resParts[0];
-  $data['device-height'] = (int) $resParts[1];
-
-  return $data;
-}
-
 function getBPConfig() {
   $conf = array();
 
@@ -435,6 +215,9 @@ function getBPConfig() {
       $conf[$breakpoint->machine_name]['css'] = 'hide_' . drupal_clean_css_identifier($breakpoint->name);
     }
     $conf['autoload'] = (variable_get('breakpoint_panels_breakpoint_reload', "no")!="no") ? TRUE : FALSE;
+    $conf['adminload'] = (variable_get('breakpoint_panels_load_hidden_admins', "yes")!="no") ? TRUE : FALSE;
+    $conf['loadhidden'] = (variable_get('breakpoint_panels_load_hidden', "no")!="no") ? TRUE : FALSE;
+    $conf['isloggedin'] = user_is_logged_in();
   }
 
   return $conf;
@@ -464,6 +247,16 @@ function breakpoint_panels_settings($form, $form_state) {
     ),
     '#default_value' => variable_get('breakpoint_panels_load_hidden', "no"),
     '#description' => t('If selected, content will be loaded, but hidden via css for development purposes.'),
+  );
+  $form['breakpoint_panels_breakpoint_reload'] = array(
+    '#title' => t('Auto Reload'),
+    '#type' => 'radios',
+    '#options' => array(
+      "no" => t("Don't Load"),
+      "yes" => t('Auto Reload'),
+    ),
+    '#default_value' => variable_get('breakpoint_panels_breakpoint_reload', "no"),
+    '#description' => t('If selected, content will be refreshed on resize if media queries change.  This will annoy users but may be handy for development.'),
   );
   return system_settings_form($form);
 }
@@ -536,11 +329,15 @@ function breakpoint_panels_decode_query($query) {
  * Implements hook_panels_pane_content_alter().
  */
 function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $context) {
-  if ($pane->style['style'] != 'breakpoint_panels') {
-    return;
-  }
   // Don't rewrite content. This is the ajax call.
-  if (!empty($pane->ajax_rendering)) {
+  drupal_add_js(drupal_get_path('module', 'breakpoint_panels') . '/js/breakpoint_panels.js');
+  if ($path = libraries_get_path('enquire.js')) {
+    drupal_add_js($path . '/enquire.min.js');
+  }
+  if ($path = libraries_get_path('matchMedia.js')) {
+    drupal_add_js($path . '/matchMedia.js');
+  }
+  if (!empty($pane->ajax_rendering) || !isset($pane->configuration['breakpoints'])) {
     return;
   }
 
@@ -574,10 +371,48 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
   $id = uniqid('breakpoint-panels-pane-' . $pane->pid . '-');
 
   unset($content->title);
+  $classes = "";
+  foreach ($pane->configuration['breakpoints'] as $bp => $val ) {
+    if ($val==0) {
+      $classes .= " hide_" . $bp;
+    }
+  }
 
-  $content->content = '<div id="' . $id . '" class="ajax-pane" src="' . $url . '">&nbsp;</div>';
+  $bps = breakpoints_breakpoint_load_all_active();
+  $ipemessage = "";
+  $hides = array();
+  $css = "";
+  foreach ($bps as $name => $bp) {
+    $clean = drupal_clean_css_identifier($bp->name);
+    if (strpos($classes,'hide_' . $clean)>-1) {
+      array_push($hides, 'hide_' . $clean);
+      $ipemessage .= '<br />Hidden from ' . $bp->name;
+    }
+    $css .= "@media " . $bp->breakpoint . " { " . '.hide_' . $clean . " { display:none } }\n .panels-ipe-editing " . '.hide_' . $clean . " { display:block }\n";
+  }
 
+  drupal_add_css($css, array('group' => CSS_DEFAULT, 'type' => 'inline'));
+  $ipemessage .= (!empty($ipemessage)) ? '<br /><br />' : '';
+
+
+  $content->content = '<div id="' . $id . '" class="ajax-pane ' . $classes . '" src="' . $url . '" pane="' . $pane->pid . '" display="' . $display->did . '"><div class="ipemessage">' . $ipemessage . '</div>&nbsp;</div>';
+  drupal_add_css(drupal_get_path('module', 'breakpoint_panels') . '/breakpoint_panels.css', array('type' => 'file', 'media' => 'screen'));
   $content->use_ajax_render = TRUE;
+
+
+
+  // $themed = theme('panels_pane', array('content' => $content, 'pane' => $pane, 'display' => $display));
+  // $classes= "";
+  // foreach ($hides as $hide) {
+  //   $classes .= ' ' . $hide;
+  // }
+  // $output = "<div class='$classes'>";$output .= '<div class="ipemessage">' . $ipemessage . '</div>';
+  // $output .= $content->content;
+  // $output .= '</div>';
+  drupal_add_css(drupal_get_path('module', 'breakpoint_panels') . '/plugins/styles/breakpoint_pane/breakpoint_pane.css', array('type' => 'file', 'media' => 'screen'));
+  // $content->content=$output;
+  // dpm($content);
+
 }
 
 /**
@@ -642,3 +477,216 @@ function page_manager_breakpoint_panels_get_context_arguments($task_name) {
       // @todo return array($terms, $depth);
   }
 }
+
+/**
+ * Render callback.
+ *
+ * @ingroup themeable
+ */
+// function theme_breakpoint_panels_render_pane($vars) {
+//   dpm($vars);
+//   if ($path = libraries_get_path('matchMedia.js')) {
+//     drupal_add_js($path . '/matchMedia.js');
+//   }
+//   $content = $vars['content'];
+//   $pane = $vars['pane'];
+//   $display = $vars['display'];
+//   $settings = $vars['settings'];
+
+//   if (empty($content->content)) {
+//     return;
+//   }
+//   $bps = breakpoints_breakpoint_load_all_active();
+//   $ipemessage = "";
+//   $hides = array();
+//   $css = "";
+//   foreach ($bps as $name => $bp) {
+//     $clean = drupal_clean_css_identifier($bp->name);
+//     if (empty($settings['pane_' . $clean])) {
+//       array_push($hides, 'hide_' . $clean);
+//       $ipemessage .= '<br />Hidden from ' . $bp->name;
+//     }
+//     $css .= "@media " . $bp->breakpoint . " { " . '.hide_' . $clean . " { display:none } }\n .panels-ipe-editing " . '.hide_' . $clean . " { display:block }\n";
+//   }
+
+//   drupal_add_css($css, array('group' => CSS_DEFAULT, 'type' => 'inline'));
+//   $ipemessage .= (!empty($ipemessage)) ? '<br /><br />' : '';
+
+//   $themed = theme('panels_pane', array('content' => $content, 'pane' => $pane, 'display' => $display));
+//   $classes= "";
+//   foreach ($hides as $hide) {
+//     $classes .= ' ' . $hide;
+//   }
+//   $output = "<div class='$classes'>";$output .= '<div class="ipemessage">' . $ipemessage . '</div>';
+//   $output .= $themed;
+//   $output .= '</div>';
+//   drupal_add_css(drupal_get_path('module', 'breakpoint_panels') . '/plugins/styles/breakpoint_pane/breakpoint_pane.css', array('type' => 'file', 'media' => 'screen'));
+//   return $output;
+// }
+
+// /**
+//  *
+//  * @see HOOK_theme()
+//  */
+// function breakpoint_panels_theme() {
+//   dpm('here');
+//   $theme = array();
+//   $theme['theme_breakpoint_panels_render_pane'] = array(
+//     'arguments' => array('content' => NULL, 'pane' => NULL, 'display' => NULL),
+//   );
+//   return $theme;
+// }
+
+
+
+// $data = NULL;
+  //  // Check if there is a valid resolution stored in the cookie.
+  // if (isset($_COOKIE['breakpoints'])) {
+  //   $data = parseRPCookie($_COOKIE['breakpoints']);
+  // }
+  // if ($data) {
+
+  //   $bps = breakpoints_breakpoint_load_all_active();
+  //   foreach ($bps as $breakpoint) {
+  //     if (!$breakpoint) {
+  //       continue;
+  //     }
+
+  //     $conditions = parseBPBreakpoint($breakpoint->breakpoint);
+  //     if (!$conditions) {
+  //       continue;
+  //     }
+  //     $matches = array();
+  //     foreach ($conditions as $cmd => $value) {
+
+  //       switch ($cmd) {
+  //         case 'width':
+  //           $match = $data['width'] === $value;
+  //           break;
+
+  //         case 'min-width':
+  //           $match = $data['width'] >= $value;
+  //           break;
+
+  //         case 'max-width':
+  //           $match = $data['width'] <= $value;
+  //           break;
+
+  //         case 'height':
+  //           $match = $data['height'] === $value;
+  //           break;
+
+  //         case 'min-height':
+  //           $match = $data['height'] >= $value;
+  //           break;
+
+  //         case 'max-height':
+  //           $match = $data['height'] <= $value;
+  //           break;
+
+  //         case 'device-width':
+  //           $match = $data['device-width'] === $value;
+  //           break;
+
+  //         case 'min-device-width':
+  //           $match = $data['device-width'] >= $value;
+  //           break;
+
+  //         case 'max-device-width':
+  //           $match = $data['device-width'] <= $value;
+  //           break;
+
+  //         case 'device-height':
+  //           $match = $data['device-height'] === $value;
+  //           break;
+
+  //         case 'min-device-height':
+  //           $match = $data['device-height'] >= $value;
+  //           break;
+
+  //         case 'max-device-height':
+  //           $match = $data['device-height'] <= $value;
+  //           break;
+
+  //         case 'aspect-ratio':
+  //           $match = $data['width'] / $data['height'] === $value;
+  //           break;
+
+  //         case 'min-aspect-ratio':
+  //           $match = $data['width'] / $data['height'] >= $value;
+  //           break;
+
+  //         case 'max-aspect-ratio':
+  //           $match = $data['width'] / $data['height'] <= $value;
+  //           break;
+
+  //         case 'device-aspect-ratio':
+  //           $match = $data['device-width'] / $data['device-height'] === $value;
+  //           break;
+
+  //         case 'min-device-aspect-ratio':
+  //           $match = $data['device-width'] / $data['device-height'] >= $value;
+  //           break;
+
+  //         case 'max-device-aspect-ratio':
+  //           $match = $data['device-width'] / $data['device-height'] <= $value;
+  //           break;
+
+  //         default:
+  //           // Unsupported.
+  //           break;
+  //       }
+
+  //       if (!$match) break;
+  //     }
+
+  //     if ($match) {
+  //       if (variable_get('breakpoint_panels_load_hidden', "no")=="yes" || (variable_get('breakpoint_panels_load_hidden_admins', "no")=="yes" && user_access('administer breakpoints'))) {
+  //         $rpadmin = TRUE;
+  //       }
+  //       foreach ($display->content as $k => $pane) {
+  //         if (isset($pane->style['settings']['pane_' . drupal_clean_css_identifier($breakpoint->name)])
+  //         && $pane->style['settings']['pane_' . drupal_clean_css_identifier($breakpoint->name)] == 0
+  //         && !isset($rpadmin)) {
+  //           $pane->shown = 0;
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
+
+
+
+// function parseRPCookie($cookie) {
+//   $data = array();
+
+//   $parts = explode('|', $cookie);
+
+//   if (count($parts) !== 2) {
+//     return FALSE;
+//   }
+
+//   $resParts = explode('x', $parts[0]);
+//   if (!(count($resParts) === 2
+//     && is_numeric($resParts[0])
+//     && is_numeric($resParts[1]))
+//   ) {
+//     return FALSE;
+//   }
+
+//   $data['width'] = (int) $resParts[0];
+//   $data['height'] = (int) $resParts[1];
+
+//   $resParts = explode('x', $parts[1]);
+//   if (!(count($resParts) === 2
+//     && is_numeric($resParts[0])
+//     && is_numeric($resParts[1]))
+//   ) {
+//     return FALSE;
+//   }
+
+//   $data['device-width'] = (int) $resParts[0];
+//   $data['device-height'] = (int) $resParts[1];
+
+//   return $data;
+// }

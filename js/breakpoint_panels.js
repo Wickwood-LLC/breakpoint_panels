@@ -13,6 +13,15 @@
 
       // Do a first manual cookie update to catch the current width.
       this.onResize();
+
+      $('.ajax-pane').once('breakpoint-panels-pane', function() {
+        var element = $(this);
+        var url = element.attr('src');
+        var pane = element.attr('pane');
+        var display = element.attr('display');
+        that.checkForLoad(pane, display, url, element);
+      });
+      enquire.fire();
     },
     // Set the cookie with screen and browser width+ height.
     // Then check if we need to reload.
@@ -42,7 +51,6 @@
       }
       var settings = Drupal.settings.breakpoint_panels_breakpoint;
       var $window = $(window);
-
       for (var key in settings) {
         for (var cmd in settings[key]) {
           var value = settings[key][cmd];
@@ -113,6 +121,41 @@
 
       return flag;
     },
+    checkForLoad: function(pane, display, url, element) {
+      var settings = Drupal.settings.breakpoint_panels_breakpoint;
+      var $window = $(window);
+      for (var key in settings) {
+        for (var cmd in settings[key]) {
+          var value = settings[key][cmd];
+          // If the result changes, the condition has changed, so we need
+          // to reload.
+          if(
+            // Show if it doesn't have the hide class
+            (cmd=='bp' && !element.hasClass(settings[key]['css']))
+            // Show if load hidden pref is checked
+            || settings['loadhidden']
+            //  Show if the 'load for admins' and they are logged in
+            || (settings['adminload'] && settings['isloggedin'])) {
+            enquire.register(
+              value,
+              {
+              match : function() {
+                element.once('ajax-loaded',function() {
+                  $.ajax({
+                    url: url,
+                    type: 'GET',
+                    dataType: 'html',
+                    success: function (response) {
+                      element.append(response);
+                    }
+                  });
+                });
+              },
+            });
+          }
+        }
+      }
+    },
     checkForEditing: function (x) {
       // check if save button is there
       x = (x) ? x :0;
@@ -148,8 +191,6 @@
               var css = sizes[size].css;
               eval("enquire.register(bp, { match : function() { $('." + css + "').parent().parent().hide();}, unmatch : function() { $('." + css + "').parent().parent().show(); }, });");
             }
-            enquire.listen();
-
             $(this).addClass('active icon-eye-close');
             $(this).removeClass('icon-eye-open');
             $('.panels-ipe-editing').addClass('hide-responsive');
@@ -162,35 +203,11 @@
             $(this).addClass('icon-eye-open');
             $('.panels-ipe-editing').removeClass('hide-responsive');
           }
-          enquire.fire();
           enquire.listen();
+          enquire.fire();
         });
       }
     },
   }
-
-  /**
-   * Load Panels panes via ajax.
-   */
-  Drupal.behaviors.ajaxPaneLoad = {
-    attach: function (context, settings) {
-
-      $('.ajax-pane').once('breakpoint-panels-pane-processed', function() {
-
-        var element = jQuery(this);
-        var url = element.attr('src');
-
-        jQuery.ajax({
-          url: url,
-          type: 'GET',
-          dataType: 'html',
-          success: function (response) {
-            element.replaceWith(response);
-          }
-        });
-      });
-
-    }
-  };
 
 })(jQuery);
