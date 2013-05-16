@@ -14,14 +14,14 @@
       // Do a first manual cookie update to catch the current width.
       this.onResize();
 
-      $('.ajax-pane').once('breakpoint-panels-pane', function() {
+      $('.bp-ajax-pane').once('bp-ajax-pane-processed', function() {
         var element = $(this);
         var url = element.attr('src');
-        var pane = element.attr('pane');
-        var display = element.attr('display');
-        that.checkForLoad(pane, display, url, element);
+        that.checkForLoad(url, element);
       });
-      enquire.fire();
+      if (Drupal.settings.breakpoint_panels_breakpoint.hasEnquire == true) {
+        enquire.fire();
+      }
     },
     // Set the cookie with screen and browser width+ height.
     // Then check if we need to reload.
@@ -121,7 +121,7 @@
 
       return flag;
     },
-    checkForLoad: function(pane, display, url, element) {
+    checkForLoad: function(url, element) {
       var settings = Drupal.settings.breakpoint_panels_breakpoint;
       var $window = $(window);
       for (var key in settings) {
@@ -136,22 +136,18 @@
             || settings['loadhidden']
             //  Show if the 'load for admins' and they are logged in
             || (settings['adminload'] && settings['isloggedin'])) {
-            enquire.register(
-              value,
-              {
-              match : function() {
-                element.once('ajax-loaded',function() {
-                  $.ajax({
-                    url: url,
-                    type: 'GET',
-                    dataType: 'html',
-                    success: function (response) {
-                      element.append(response);
-                    }
-                  });
-                });
-              },
-            });
+            if (settings.hasEnquire == true) {
+              enquire.register(
+                value,
+                {
+                match : function() {
+                  breakpoint_panels_fetch_pane(element, url);
+                },
+              });
+            }
+            else {
+              breakpoint_panels_fetch_pane(element, url);
+            }
           }
         }
       }
@@ -203,11 +199,29 @@
             $(this).addClass('icon-eye-open');
             $('.panels-ipe-editing').removeClass('hide-responsive');
           }
-          enquire.listen();
-          enquire.fire();
+          if (Drupal.settings.breakpoint_panels_breakpoint.hasEnquire == true) {
+            enquire.listen();
+            enquire.fire();
+          }
         });
       }
     },
+  };
+
+  /**
+   * Fetches the contents of a pane and replaces an element with them.
+   */
+  function breakpoint_panels_fetch_pane(element, url) {
+    element.once('ajax-loaded',function() {
+      $.ajax({
+        url: url,
+        type: 'GET',
+        dataType: 'html',
+        success: function (response) {
+          element.replaceWith(response);
+        }
+      });
+    });
   }
 
 })(jQuery);

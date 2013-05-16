@@ -1,10 +1,12 @@
 name = Breakpoint Panels
-description = A custom module to allow different panes for breakpoints
+description = Display different panes for breakpoints
 core = 7.x
 dependencies[] = ctools
 dependencies[] = panels
 dependencies[] = libraries
 dependencies[] = page_manager
 dependencies[] = breakpoints
+files[] = breakpoint_panels.module
+configure = admin/config/user-interface/breakpoint_panels
 package = "User Interface"
 version = "7.x-1.0"
