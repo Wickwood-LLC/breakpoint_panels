@@ -65,17 +65,17 @@ function breakpoint_panels_libraries_info() {
  */
 function breakpoint_panels_pane_settings_form($style_settings, $form_state) {
   $form = array();
-  $bps = breakpoints_breakpoint_load_all_active();
+  $bps = breakpoint_panels_get_breakpoints();
   $pid = $form_state['pane_id'];
   $did = $form_state['display_id'];
   $panel = panels_load_display($did);
 
   $pane = $panel->content[$pid];
   foreach ($bps as $name => $bp) {
-    $form['pane_' . drupal_clean_css_identifier($bp->name)] = array(
+    $form[$bp->breakpoint_panels_name] = array(
       '#type' => 'checkbox',
       '#title' => filter_xss(t('Display ' . $bp->name)),
-      '#default_value' => ($pane->configuration['breakpoints']) ?  $pane->configuration['breakpoints'][$bp->name] : TRUE
+      '#default_value' => !empty($pane->configuration['breakpoints']) ?  $pane->configuration['breakpoints'][$bp->breakpoint_panels_name] : TRUE
     );
   }
 
@@ -138,18 +138,48 @@ function breakpoint_panels_settings($form, $form_state) {
 function breakpoint_panels_pane_settings_form_submit(&$form, &$form_state) {
   $display_id = $form['display_id']['#value'];
   $pane_id = $form['pane_id']['#value'];
-  $panel = panels_load_display($display_id);
-  $pane = $panel->content[$pane_id];
-  $bps = breakpoints_breakpoint_load_all_active();
+  $display = panels_load_display($display_id);
+  $pane = $display->content[$pane_id];
+  $bps = breakpoint_panels_get_breakpoints();
   $pane->configuration['breakpoints'] = array();
-  foreach ($bps as $breakpoint) {
-    if (!$breakpoint) {
+  foreach ($bps as $bp) {
+    if (!$bp) {
       continue;
     }
-    $pane->configuration['breakpoints'][$breakpoint->name] = $form['pane_' . $breakpoint->name]['#value'];
+    $pane->configuration['breakpoints'][$bp->breakpoint_panels_name] = $form[$bp->breakpoint_panels_name]['#value'];
   }
-  $panel->content[$pane_id] = $pane;
-  panels_save_display($panel);
+  $display->content[$pane_id] = $pane;
+
+  panels_save_display($display);
+
+  ctools_include('object-cache');
+
+  // If the cache is not updated the submitted settings in this form will be overwritten
+  // when the page is saved.
+  // todo: Pretty sure there should be a better way to do this. Had a hard time
+  // trying to track down the exact ctools_object_cache to update so just looping
+  // through all page manager caches for the current session. Suggestions welcome!
+  $sid = session_id();
+  $obj = 'page_manager_page';
+  $session_caches = db_query('SELECT * FROM {ctools_object_cache} WHERE sid = :session_id AND obj = :object', array(':session_id' => $sid, ':object' => $obj));
+  if (!empty($session_caches)) {
+    foreach ($session_caches as $session_cache) {
+      $cache = ctools_object_cache_get($obj, $session_cache->name, FALSE, $sid);
+
+      if (!empty($cache->display_cache)) {
+        foreach ($cache->display_cache as $dc => $display_cache) {
+          if (!empty($display_cache->display->content)) {
+            foreach ($display_cache->display->content as $dc_pid => $dc_pane) {
+              if ($dc_pid == $pane_id && $dc_pane->did == $pane->did) {
+                $cache->display_cache[$dc]->display->content[$dc_pid] = $pane;
+              }
+            }
+          }
+        }
+      }
+      ctools_object_cache_set($obj, $session_cache->name, $cache, $sid);
+    }
+  }
   $form_state['message'] = t('fixed');
 }
 
@@ -221,7 +251,7 @@ function breakpoint_panels_get_config() {
     'max-aspect-ratio',
   );
 
-  $bps = breakpoints_breakpoint_load_all_active();
+  $bps = breakpoint_panels_get_breakpoints();
   foreach ($bps as $breakpoint) {
     if (!$breakpoint) continue;
 
@@ -238,7 +268,7 @@ function breakpoint_panels_get_config() {
     if (count($point)) {
       $conf[$breakpoint->machine_name] = $point;
       $conf[$breakpoint->machine_name]['bp'] = $breakpoint->breakpoint;
-      $conf[$breakpoint->machine_name]['css'] = breakpoint_panels_css_name($breakpoint->name);
+      $conf[$breakpoint->machine_name]['css'] = $breakpoint->breakpoint_panels_name;
     }
     $conf['autoload'] = (variable_get('breakpoint_panels_breakpoint_reload', "no")!="no") ? TRUE : FALSE;
     $conf['adminload'] = (variable_get('breakpoint_panels_load_hidden_admins', "yes")!="no") ? TRUE : FALSE;
@@ -387,7 +417,11 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
     drupal_add_js($path . '/matchMedia.js');
   }
 
-  if (!empty($pane->ajax_rendering) || empty($pane->style['settings']) || (empty($pane->style['style']) || $pane->style['style'] != 'breakpoint_pane') || empty($pane->pid)) {
+  if (
+    !empty($pane->ajax_rendering)
+    || empty($pane->configuration['breakpoints'])
+    || empty($pane->pid)
+    ) {
     // Don't rewrite content. This is the ajax call.
     return;
   }
@@ -402,7 +436,7 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
   $none_found = TRUE;
   if (!empty($breakpoints_list)) {
     foreach ($breakpoints_list as $breakpoint) {
-      if (!empty($pane->style['settings'][$breakpoint])) {
+      if (!empty($pane->configuration['breakpoints'][$breakpoint])) {
         $none_found = FALSE;
       }
       else {
@@ -451,26 +485,26 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
 
   unset($content->title);
   $classes = '';
-  foreach ($pane->style['settings'] as $bp => $val) {
+  foreach ($pane->configuration['breakpoints'] as $bp => $val) {
     if ($val==0) {
-      $classes .= ' ' . breakpoint_panels_css_name($bp);
+      $classes .= ' ' . $bp;
     }
   }
   $classes = trim($classes);
 
-  $bps = breakpoints_breakpoint_load_all_active();
+  $bps = breakpoint_panels_get_breakpoints();
   $ipemessage = '';
   $hides = array();
 
   // Add CSS to page.
   $css = '';
   foreach ($bps as $name => $bp) {
-    $clean = breakpoint_panels_css_name($bp->name);
-    if (strpos($classes, $clean) >- 1) {
-      array_push($hides, $clean);
+    //$clean = breakpoint_panels_css_name($bp->name);
+    if (strpos($classes, $bp->breakpoint_panels_name) >- 1) {
+      array_push($hides, $bp->breakpoint_panels_name);
       $ipemessage .= '<br />Hidden from ' . $bp->name;
     }
-    $css .= "@media " . $bp->breakpoint . " { " . '.' . $clean . " { display:none } }\n .panels-ipe-editing " . '.hide_' . $clean . " { display:block }\n";
+    $css .= "@media " . $bp->breakpoint . " { " . '.' . $bp->breakpoint_panels_name . " { display:none } }\n .panels-ipe-editing " . '.hide_' . $bp->breakpoint_panels_name . " { display:block }\n";
   }
   drupal_add_css($css, array('group' => CSS_DEFAULT, 'type' => 'inline'));
   drupal_add_css(drupal_get_path('module', 'breakpoint_panels') . '/breakpoint_panels.css', array('type' => 'file', 'media' => 'screen'));
@@ -490,13 +524,13 @@ function breakpoint_panels_fetch_breakpoints_list() {
   global $theme_key;
 
   // Call the breakpoints.module function for active breakpoints.
-  $breakpoints = breakpoints_breakpoint_load_all_active($theme_key);
+  $breakpoints = breakpoint_panels_get_breakpoints($theme_key);
 
   // Clean up result, add css safe name.
   $breakpoints_list = array();
   if (!empty($breakpoints)) {
     foreach ($breakpoints as $bp) {
-      $breakpoints_list[] = 'pane_' . drupal_clean_css_identifier($bp->name);
+      $breakpoints_list[] = $bp->breakpoint_panels_name;
     }
   }
 
@@ -569,13 +603,33 @@ function page_manager_breakpoint_panels_get_context_arguments($task_name) {
 /**
  * Returns a safe name for the css class.
  */
-function breakpoint_panels_css_name($name) {
-  $name = strtolower($name);
-  if (strpos($name, 'pane_') === 0) {
-    $name = str_replace('pane_', '', $name);
-  }
-  $name = 'hide_' . $name;
-  $name = drupal_clean_css_identifier($name);
+// function breakpoint_panels_css_name($name) {
+//   $name = strtolower($name);
+//   if (strpos($name, 'pane_') === 0) {
+//     $name = str_replace('pane_', '', $name);
+//   }
+//   $name = 'hide_' . $name;
+//   $name = drupal_clean_css_identifier($name);
 
-  return $name;
+//   return $name;
+// }
+
+/**
+ * Returns list of all breakpoints with CSS friendly name.
+ */
+function breakpoint_panels_get_breakpoints() {
+  $breakpoints = breakpoints_breakpoint_load_all_active();
+  foreach ($breakpoints as $ix => $bp) {
+    $arr_test = explode('.', $bp->machine_name);
+    if (is_array($arr_test)) {
+      $base = array_pop($arr_test);
+    }
+    else {
+      $base = $tmp->machine_name;
+    }
+    $breakpoints[$ix]->breakpoint_panels_name = drupal_clean_css_identifier($base . '-' . $bp->id);
+
+  }
+
+  return $breakpoints;
 }
