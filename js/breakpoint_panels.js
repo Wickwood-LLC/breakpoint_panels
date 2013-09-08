@@ -131,11 +131,12 @@
           // to reload.
           if(
             // Show if it doesn't have the hide class
-            (cmd=='bp' && !element.hasClass(settings[key]['css']))
+            (cmd=='bp' && !element.hasClass('hide-' + settings[key]['css']))
             // Show if load hidden pref is checked
             || settings['loadhidden']
             //  Show if the 'load for admins' and they are logged in
-            || (settings['adminload'] && settings['isloggedin'])) {
+            || (settings['adminload'] && settings['isloggedin'])
+          ) {
             if (settings.hasEnquire == true) {
               enquire.register(
                 value,
@@ -185,7 +186,9 @@
             for (size in sizes) {
               var bp = sizes[size].bp;
               var css = sizes[size].css;
-              eval("enquire.register(bp, { match : function() { $('." + css + "').parent().parent().hide();}, unmatch : function() { $('." + css + "').parent().parent().show(); }, });");
+              if (settings.hasEnquire == true) {
+                eval("enquire.register(bp, { match : function() { $('." + css + "').parent().parent().hide();}, unmatch : function() { $('." + css + "').parent().parent().show(); }, });");
+              }
             }
             $(this).addClass('active icon-eye-close');
             $(this).removeClass('icon-eye-open');
@@ -193,13 +196,15 @@
           } else {
             for (size in sizes) {
               $('.' + sizes[size].css).show();
-              enquire.unregister(sizes[size].bp);
+              if (settings.hasEnquire == true) {
+                enquire.unregister(sizes[size].bp);
+              }
             }
             $(this).removeClass('active icon-eye-close');
             $(this).addClass('icon-eye-open');
             $('.panels-ipe-editing').removeClass('hide-responsive');
           }
-          if (Drupal.settings.breakpoint_panels_breakpoint.hasEnquire == true) {
+          if (settings.hasEnquire == true) {
             enquire.listen();
             enquire.fire();
           }
@@ -212,12 +217,15 @@
    * Fetches the contents of a pane and replaces an element with them.
    */
   function breakpoint_panels_fetch_pane(element, url) {
+    // console.log(element);
+    // console.log(url);
     element.once('ajax-loaded',function() {
       $.ajax({
         url: url,
         type: 'GET',
         dataType: 'html',
         success: function (response) {
+          //console.log(response);
           element.replaceWith(response);
         }
       });
