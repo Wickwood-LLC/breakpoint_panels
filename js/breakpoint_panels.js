@@ -1,6 +1,7 @@
 (function($) {
   Drupal.behaviors.breakpoint_panels = {
     attach: function (context) {
+
       var that = this;
       $('#panels-ipe-customize-page').click(function(context){
         that.checkForEditing();
@@ -14,14 +15,12 @@
       // Do a first manual cookie update to catch the current width.
       this.onResize();
 
-      $('.bp-ajax-pane').once('bp-ajax-pane-processed', function() {
+      // For each AJAX pane check if it should be loaded and register enquire match.
+      $('.bp-ajax-pane').each(function() {
         var element = $(this);
-        var url = element.attr('src');
+        var url = element.attr('data-src');
         that.checkForLoad(url, element);
       });
-      if (Drupal.settings.breakpoint_panels_breakpoint.hasEnquire == true) {
-        enquire.fire();
-      }
     },
     // Set the cookie with screen and browser width+ height.
     // Then check if we need to reload.
@@ -122,32 +121,49 @@
       return flag;
     },
     checkForLoad: function(url, element) {
+      /**
+       * Checks if a pane should be loaded given the current screen size.
+       */
       var settings = Drupal.settings.breakpoint_panels_breakpoint;
-      var $window = $(window);
-      for (var key in settings) {
-        for (var cmd in settings[key]) {
-          var value = settings[key][cmd];
-          // If the result changes, the condition has changed, so we need
-          // to reload.
-          if(
-            // Show if it doesn't have the hide class
-            (cmd=='bp' && !element.hasClass('hide-' + settings[key]['css']))
-            // Show if load hidden pref is checked
+      var parent_el = element.parent();
+      var this_shown = false;
+      if (settings['breakpoints'] != 'undefined') {
+        for (var key in settings['breakpoints']) {
+          var cur_bp = settings['breakpoints'][key];
+          if (
+            !parent_el.hasClass('hide-' + cur_bp['css'])
             || settings['loadhidden']
-            //  Show if the 'load for admins' and they are logged in
             || (settings['adminload'] && settings['isloggedin'])
           ) {
-            if (settings.hasEnquire == true) {
-              enquire.register(
-                value,
-                {
-                match : function() {
-                  breakpoint_panels_fetch_pane(element, url);
+            if (settings['hasEnquire']) {
+              var that = this;
+              enquire.register(cur_bp['bp'], {
+                match: function() {
+                  that.fetch_pane(url, element);
+                  element.closest('.panel-pane').show();
                 },
+                unmatch: function() {
+                  // Hide closest ancestor of class panel-pane to make sure any styles.
+                  // applied to the pane are also hidden.
+                  element.closest('.panel-pane').hide();
+                }
               });
             }
             else {
-              breakpoint_panels_fetch_pane(element, url);
+              // Fallback psuedo-gracefully if enquire was not found.
+              this.fetch_pane(url, element);
+            }
+          }
+          else {
+            if (settings['hasEnquire']) {
+              enquire.register(cur_bp['bp'], {
+                match: function() {
+                  element.closest('.panel-pane').hide();
+                },
+                unmatch: function() {
+                  element.closest('.panel-pane').show();
+                }
+              });
             }
           }
         }
@@ -206,30 +222,29 @@
           }
           if (settings.hasEnquire == true) {
             enquire.listen();
-            enquire.fire();
+            //enquire.fire();// enquire.fire(); // Enquire doesn't seem to have this method.
           }
         });
       }
     },
+    fetch_pane: function(url, element) {
+      /**
+       * Does an AJAX request for the pane contents if it has not yet been loaded.
+       */
+      if (!element.hasClass('processed')) {
+        $.ajax({
+          url: url,
+          type: 'GET',
+          dataType: 'html',
+          success: function (response) {
+            // Swap out the contents of the placeholder with the actual pane contents.
+            element.replaceWith(response);
+            // Flag as processed so that it will not load again.
+            element.addClass('processed');
+          }
+        });
+      }
+    }
   };
-
-  /**
-   * Fetches the contents of a pane and replaces an element with them.
-   */
-  function breakpoint_panels_fetch_pane(element, url) {
-    // console.log(element);
-    // console.log(url);
-    element.once('ajax-loaded',function() {
-      $.ajax({
-        url: url,
-        type: 'GET',
-        dataType: 'html',
-        success: function (response) {
-          //console.log(response);
-          element.replaceWith(response);
-        }
-      });
-    });
-  }
 
 })(jQuery);

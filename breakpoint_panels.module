@@ -47,7 +47,7 @@ function breakpoint_panels_menu() {
 function breakpoint_panels_libraries_info() {
   // Enquire.js and MatchMedia.js libraries can enhance usability for this module.
   $libraries['enquire.js'] = array(
-    'name' => 'enquire',
+    'name' => 'enquire.js',
     'files' => array(
       'js' => array(
         'enquire.min.js',
@@ -351,9 +351,9 @@ function breakpoint_panels_get_config() {
 
     if (count($point)) {
       // Store the settings for each breakpoint in the JS.
-      $conf[$breakpoint->machine_name] = $point;
-      $conf[$breakpoint->machine_name]['bp'] = $breakpoint->breakpoint;
-      $conf[$breakpoint->machine_name]['css'] = $breakpoint->breakpoint_panels_name;
+      $conf['breakpoints'][$breakpoint->machine_name] = $point;
+      $conf['breakpoints'][$breakpoint->machine_name]['bp'] = $breakpoint->breakpoint;
+      $conf['breakpoints'][$breakpoint->machine_name]['css'] = $breakpoint->breakpoint_panels_name;
     }
   }
 
@@ -434,6 +434,7 @@ function breakpoint_panels_parse($query) {
  * Some code here taken from / inspired by the ajax_pane project. Thank you to creaoy, twistor, and undertext.
  */
 function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $context) {
+
   // Check if the processing is even required, if not return.
   if (
     !empty($pane->ajax_rendering)
@@ -554,7 +555,7 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
   }
 
   // Swap content out for a placeholder.
-  $content->content = '<div class="' . $classes . '" pane="' . $pane->pid . '" display="' . $pane->did . '">' . $ipemessage . '<div id="' . $id . '" class="bp-ajax-pane" src="' . $url . '"></div></div>';
+  $content->content = '<div class="' . $classes . '" data-pane="' . $pane->pid . '" data-display="' . $pane->did . '">' . $ipemessage . '<div id="' . $id . '" class="bp-ajax-pane" data-src="' . $url . '"></div></div>';
 
   // Set a flag so to tell this same hook not do the placeholder swap
   // when the pane is rendered via AJAX.
@@ -583,14 +584,6 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '') {
 
   // Load the display object.
   $display = panels_load_display($did);
-
-  // if (!empty($context['task_name'])) {
-  //   // Get the context for this pane.
-  //   list($task_args, $task_contexts) = breakpoint_panels_panels_get_task_context($context['task_name']);
-
-  //   $display->context = $task_contexts;
-  //   $display->args = $task_args;
-  // }
 
   // If the pane uses panalizer then we need to load the context of the entity/node being viewed.
   if (!empty($context['panalizer'])) {
@@ -637,69 +630,6 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '') {
 
   die();
 }
-
-/**
- * Looks up the menu handler for a URL, and provides the correct contexts.
- *
- * Each of the panel task plugins provides a default context based on the menu
- * path.
- */
-// function breakpoint_panels_panels_get_task_context($task_name) {
-//   $task = page_manager_get_task($task_name);
-
-//   // Invoke the module's hook_esi_get_context_arguments to get the context
-//   // provided by that task.
-//   $context_arguments = module_invoke($task['module'], 'breakpoint_panels_get_context_arguments', $task['name']);
-
-//   // Parse the arguments into context objects.
-//   ctools_include('context');
-//   ctools_include('context-task-handler');
-//   $contexts = ctools_context_handler_get_task_contexts($task, '', $context_arguments);
-
-//   return array($context_arguments, $contexts);
-// }
-
-/**
- * Implements hook_breakpoint_panels_get_context_arguments().
- *
- * On behalf implementation of Ajax panes api for page_manager.module.
- */
-// function page_manager_breakpoint_panels_get_context_arguments($task_name) {
-//   switch ($task_name) {
-//     // The blog, poll, and contact_site tasks don't provide default context.
-//     case 'blog':
-//     case 'poll':
-//     case 'contact_site':
-//       return array();
-
-//     // The blog_user, and contact_user tasks provide a user-object.
-//     case 'blog_user':
-//     case 'contact_user':
-//       $uid = arg(1);
-//       $account = user_load($uid);
-//       return array($account);
-
-//     // The comment_reply task provide a node object and a comment CID.
-//     case 'comment_reply':
-//       // Path is comment/reply/%node
-//       $nid = arg(2);
-//       $pid = arg(3);
-//       $node = node_load($nid);
-//       return array($node, $pid);
-
-//     // The node_edit and node_view tasks provide a node object.
-//     case 'node_edit':
-//     case 'node_view':
-//       $nid = arg(1);
-//       $node = node_load($nid);
-//       return array($nid);
-
-//     case 'search':
-//       // @todo return array($keys);
-//     case 'term_view':
-//       // @todo return array($terms, $depth);
-//   }
-// }
 
 /**
  * Returns list of all breakpoints with a CSS friendly name.
