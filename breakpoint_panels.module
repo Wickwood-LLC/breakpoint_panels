@@ -24,7 +24,7 @@ function breakpoint_panels_menu() {
   $items['breakpoint_panels/%ctools_js/settings/form/%/%'] = array(
     'title' => t('Breakpoints Pane'),
     'page callback' => 'breakpoint_panels_modal_popup',
-    'page arguments' => array(1,4,5),
+    'page arguments' => array(1, 4, 5),
     'access callback' => TRUE,
     'type' => MENU_CALLBACK,
   );
@@ -112,7 +112,7 @@ function breakpoint_panels_settings($form, $form_state) {
       'theme' => t('Theme Defined Breakpoints'),
     ),
     '#default_value' => variable_get('breakpoint_panels_show_types', 'all'),
-    '#description' => t('When assigning breakpoints for a pane to be desplayed, show the following types of breakpoints. You may want to switch it to custom if you have modules installed that created breakpoints that you do not want listed.'),
+    '#description' => t('When assigning breakpoints for a pane to be displayed, show the following types of breakpoints. You may want to switch it to custom if you have modules installed that created breakpoints that you do not want listed.'),
   );
   return system_settings_form($form);
 }
@@ -146,7 +146,7 @@ function breakpoint_panels_modal_popup($js = NULL, $pid = 0, $did = 0) {
     'pid' => $pid,
     'did' => $did,
   );
-  if(!$js) {
+  if (!$js) {
     return drupal_get_form('breakpoint_panels_pane_settings_form', null, $pid);
   }
   ctools_include('modal');
@@ -180,7 +180,7 @@ function breakpoint_panels_pane_settings_form($style_settings, $form_state) {
   $pane = $panel->content[$pid];
 
   // Loop through the breakpoints and check for existing settings.
-  foreach ($bps as $name => $bp) {
+  foreach ($bps as $bp) {
     $default = TRUE;
     if (!empty($pane->configuration['breakpoints'])) {
       $default = $pane->configuration['breakpoints'][$bp->breakpoint_panels_name];
@@ -222,7 +222,7 @@ function breakpoint_panels_pane_settings_form_submit(&$form, &$form_state) {
   $did = $form['did']['#value'];
   $pid = $form['pid']['#value'];
 
-  // Load the pane so that we can update the configuraiton.
+  // Load the pane so that we can update the configuration.
   $display = panels_load_display($did);
   $pane = $display->content[$pid];
 
@@ -236,7 +236,7 @@ function breakpoint_panels_pane_settings_form_submit(&$form, &$form_state) {
   }
   $display->content[$pid] = $pane;
 
-  // Save the dispaly with the new breakpoint settings.
+  // Save the display with the new breakpoint settings.
   panels_save_display($display);
 
   // If the cache is not updated the submitted settings in this form will be overwritten
@@ -247,15 +247,16 @@ function breakpoint_panels_pane_settings_form_submit(&$form, &$form_state) {
   ctools_include('object-cache');
   $sid = session_id();
 
-  // Need to check for both page manager and panalizer objects.
+  // Need to check for both page manager and panelizer objects.
   $objs = array(
     'page_manager_page',
     'panelizer_display_cache',
-    );
+  );
 
   foreach ($objs as $obj) {
     // Query the DB for ctools object caches of the current object type.
-    $session_caches = db_query('SELECT * FROM {ctools_object_cache} WHERE sid = :session_id AND obj = :object', array(':session_id' => $sid, ':object' => $obj));
+    $session_caches = db_query('SELECT * FROM {ctools_object_cache} WHERE sid = :session_id AND obj = :object', array(':session_id' => $sid,
+      ':object' => $obj));
 
     // If records found, they need to be updated or the settings changes will be overwritten.
     if (!empty($session_caches)) {
@@ -274,7 +275,7 @@ function breakpoint_panels_pane_settings_form_submit(&$form, &$form_state) {
                 // Only update if the pid and did match.
                 // todo: Currently this only works with panes that are in the DB as opposed to in code.
                 if ($dc_pid == $pid && $dc_pane->did == $pane->did) {
-                  // Update only the breakpoint settings so not to interfer with any other modules.
+                  // Update only the breakpoint settings so not to interfere with any other modules.
                   $cache->display_cache[$dc]->display->content[$dc_pid]->configuration['breakpoints'] = $pane->configuration['breakpoints'];
                 }
               }
@@ -282,11 +283,11 @@ function breakpoint_panels_pane_settings_form_submit(&$form, &$form_state) {
           }
         }
 
-        // Panalizer pages just need the $cache->display updated.
+        // Panelizer pages just need the $cache->display updated.
         if (!empty($cache->display->content)) {
           foreach ($cache->display->content as $d_pid => $d_pane) {
             if ($d_pid == $pid && $d_pane->did == $pane->did) {
-              // Update only the breakpoint settings so not to interfer with any other modules.
+              // Update only the breakpoint settings so not to interfere with any other modules.
               $cache->display->content[$d_pid]->configuration['breakpoints'] = $pane->configuration['breakpoints'];
             }
           }
@@ -334,7 +335,9 @@ function breakpoint_panels_get_config() {
 
   // Loop through each breakpoint and parse its conditions.
   foreach ($bps as $breakpoint) {
-    if (!$breakpoint) continue;
+    if (!$breakpoint) {
+      continue;
+    }
 
     // Parse the condition.
     $conditions = breakpoint_panels_parse($breakpoint->breakpoint);
@@ -398,7 +401,7 @@ function breakpoint_panels_parse($query) {
       case 'max-device-height':
         // Only px values are supported.
         if (strpos($value, 'px') !== FALSE) {
-          $point[$cmd] = (int) str_replace('px', '', $value);
+          $point[$cmd] = (int)str_replace('px', '', $value);
         }
         break;
 
@@ -411,7 +414,7 @@ function breakpoint_panels_parse($query) {
         $parts = explode('/', $value);
 
         if (count($parts) === 2 && is_numeric($parts[0]) && is_numeric($parts[1])) {
-          $point[$cmd] = (float) $parts[0] / (float) $parts[1];
+          $point[$cmd] = (float)$parts[0] / (float)$parts[1];
         }
 
         break;
@@ -441,7 +444,7 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
     || empty($pane->configuration['breakpoints'])
     || empty($pane->pid)
   ) {
-    // This is either an AJAX call for the real content, there are no breakpoint setings defined,
+    // This is either an AJAX call for the real content, there are no breakpoint settings defined,
     // or there is no valid pid on the pane, if that's the case nothing to do here, bail.
     return;
   }
@@ -496,14 +499,14 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
     $pass_context['args'] = $args;
   }
 
-  // Check for panalizer, and pass context so that it can be rebuilt.
+  // Check for panelizer, and pass context so that it can be rebuilt.
   if (!empty($context['panelizer'])) {
-    $pass_context['panalizer'] = 1;
+    $pass_context['panelizer'] = 1;
     if (!empty($context['panelizer']->keyword)) {
-      $pass_context['panalizer_keyword'] = $context['panelizer']->keyword;
+      $pass_context['panelizer_keyword'] = $context['panelizer']->keyword;
     }
     if (!empty($context['panelizer']->argument)) {
-      $pass_context['panalizer_argument'] = $context['panelizer']->argument;
+      $pass_context['panelizer_argument'] = $context['panelizer']->argument;
     }
   }
 
@@ -531,7 +534,7 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
   $css = '';
   $hides = array();
   // Loop through each breakpoint and check for if it needs added to the panes hidden styles.
-  foreach ($bps as $name => $bp) {
+  foreach ($bps as $bp) {
     // If the breakpoint setting is found and is set to false, then push it to the hidden array.
     if (
       isset($pane->configuration['breakpoints'][$bp->breakpoint_panels_name])
@@ -547,7 +550,8 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
 
   // Add the needed CSS to the page.
   drupal_add_css($css, array('group' => CSS_DEFAULT, 'type' => 'inline'));
-  drupal_add_css(drupal_get_path('module', 'breakpoint_panels') . '/breakpoint_panels.css', array('type' => 'file', 'media' => 'screen'));
+  drupal_add_css(drupal_get_path('module', 'breakpoint_panels') . '/breakpoint_panels.css', array('type' => 'file',
+    'media' => 'screen'));
 
   // Cleanup the IPE Message.
   if (!empty($ipemessage)) {
@@ -565,7 +569,7 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
 /**
  * Menu handler to serve individual panel-panes via AJAX.
  *
- * If the pane uses context like with panalizer it can be passed as a base64 encoded serialized
+ * If the pane uses context like with panelizer it can be passed as a base64 encoded serialized
  * array.
  */
 function breakpoint_panels_panels_pane_handler($encoded_context = '') {
@@ -585,25 +589,25 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '') {
   // Load the display object.
   $display = panels_load_display($did);
 
-  // If the pane uses panalizer then we need to load the context of the entity/node being viewed.
-  if (!empty($context['panalizer'])) {
+  // If the pane uses panelizer then we need to load the context of the entity/node being viewed.
+  if (!empty($context['panelizer'])) {
     $display->context['panelizer'] = new ctools_context;
-    // Load a node for context. This is needed for entity field rendering on a panalizer page.
+    // Load a node for context. This is needed for entity field rendering on a panelizer page.
     // todo: Might need to update this so that it better supports other types of entities.
     if (
-      !empty($context['panalizer_argument'])
-      && is_numeric($context['panalizer_argument'])
-      && !empty($context['panalizer_keyword'])
+      !empty($context['panelizer_argument'])
+      && is_numeric($context['panelizer_argument'])
+      && !empty($context['panelizer_keyword'])
     ) {
-      if (isset($dispaly->args) && is_array($display->args)) {
-        $display->args[] = $context['panalizer_argument'];
+      if (isset($display->args) && is_array($display->args)) {
+        $display->args[] = $context['panelizer_argument'];
       }
       else {
-        $display->args = array($context['panalizer_argument']);
+        $display->args = array($context['panelizer_argument']);
       }
 
-      if ($context['panalizer_keyword'] == 'node') {
-        $display->context['panelizer']->data = node_load($context['panalizer_argument']);
+      if ($context['panelizer_keyword'] == 'node') {
+        $display->context['panelizer']->data = node_load($context['panelizer_argument']);
       }
     }
   }
@@ -617,7 +621,6 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '') {
   $renderer = panels_get_renderer_handler($display->renderer, $display);
 
   // Render the new content.
-  $content = '';
   $content = $renderer->render_pane_content($pane);
 
   // Setup the variables array and theme it with the panes_pane template.
@@ -637,9 +640,6 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '') {
 function breakpoint_panels_get_breakpoints() {
   // Check the module configuration preference for which types to display as options.
   $types = variable_get('breakpoint_panels_show_types', 'all');
-  if ($types == 'all') {
-    $breakpoints = breakpoints_breakpoint_load_all();
-  }
   if ($types == 'active') {
     $breakpoints = breakpoints_breakpoint_load_all_active();
   }
@@ -650,8 +650,11 @@ function breakpoint_panels_get_breakpoints() {
     global $theme_key;
     $breakpoints = breakpoints_breakpoint_load_all_theme($theme_key);
   }
-  else if ($types == 'custom') {
+  if ($types == 'custom') {
     $breakpoints = breakpoints_breakpoint_load_all_custom();
+  }
+  else {
+    $breakpoints = breakpoints_breakpoint_load_all();
   }
 
   // For each breakpoint find a base name to use from the machine name, then make a css
@@ -662,7 +665,7 @@ function breakpoint_panels_get_breakpoints() {
       $base = array_pop($arr_test);
     }
     else {
-      $base = $tmp->machine_name;
+      $base = $bp->machine_name;
     }
 
     $breakpoints[$ix]->breakpoint_panels_name = drupal_clean_css_identifier($base . '-' . $bp->id);

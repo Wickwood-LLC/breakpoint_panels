@@ -1,70 +1,106 @@
-(function($) {
+(function ($) {
   Drupal.behaviors.breakpoint_panels = {
+
     attach: function (context) {
+      /**
+       * Initializes breakpoint panels listeners and handling.
+       */
+
+      // If no breakpoints found, then these are not the droids you're looking for, move along.
+      if (Drupal.settings.breakpoint_panels_breakpoint['breakpoints'] == 'undefined') {
+        return;
+      }
+      var settings = Drupal.settings.breakpoint_panels_breakpoint;
+      var breakpoints = settings['breakpoints'];
 
       var that = this;
-      $('#panels-ipe-customize-page').click(function(context){
+
+      // Setup the toggle responsive handlers for use in enquire.js.
+      for (var breakpoint in breakpoints) {
+        var css = breakpoints[breakpoint]['css']
+        var handler = {
+          match: function () {
+            $('.hide-' + css).parent().parent().hide();
+          },
+          unmatch: function () {
+            $('.hide-' + css).parent().parent().show();
+          }
+        };
+        Drupal.settings.breakpoint_panels_breakpoint['breakpoints'][breakpoint]['toggle_handler'] = handler;
+      }
+
+      // Check to see if an admin is using the IPE.
+      $('#panels-ipe-customize-page').click(function (context) {
         that.checkForEditing();
       });
 
-      // Update cookies on each resize.
-      $(window).resize(function() {
+      // Update the window dimensions on each resize.
+      $(window).resize(function () {
         that.onResize();
       });
 
-      // Do a first manual cookie update to catch the current width.
+      // Do a first manual update to catch the current window dimensions.
       this.onResize();
 
       // For each AJAX pane check if it should be loaded and register enquire match.
-      $('.bp-ajax-pane').each(function() {
+      $('.bp-ajax-pane').each(function () {
         var element = $(this);
         var url = element.attr('data-src');
         that.checkForLoad(url, element);
       });
+
     },
-    // Set the cookie with screen and browser width+ height.
-    // Then check if we need to reload.
-    onResize: function() {
-      var date = new Date();
-      date.setTime(date.getTime() + 30*24*60*60*1000);
-      var expires = date.toGMTString();
 
-      $window = $(window);
-
-      var value = $window.width() + 'x' + $window.height()
-        + '|' + screen.width + 'x' + screen.height;
-
-      // Set cookie for screen resolution.
-      document.cookie = 'breakpoints=' + value + '; expires=' + expires + '; path=/';
+    onResize: function () {
+      /**
+       * Updates the objects height/width and checks if reloading of the page is required.
+       */
 
       if (this.width && this.height) {
-        this.checkForReload($window.width(), $window.height());
+        this.checkForReload();
       }
+      $window = $(window);
       this.width = $window.width();
       this.height = $window.height()
+
     },
 
-    checkForReload: function(curWidth, curHeight) {
-      if (!('breakpoint_panels_breakpoint' in Drupal.settings) || !(Drupal.settings.breakpoint_panels_breakpoint.autoload)) {
+    checkForReload: function () {
+      /**
+       * If auto loading is enabled in the Breakpoint Panels configuration, then this
+       * method will check if the page needs to be reloaded on a resize.
+       * This is generally for development purposes.
+       */
+
+      var settings = Drupal.settings.breakpoint_panels_breakpoint;
+      var breakpoints = settings['breakpoints'];
+
+      if (!(settings['autoload'])) {
         return;
       }
-      var settings = Drupal.settings.breakpoint_panels_breakpoint;
+
       var $window = $(window);
-      for (var key in settings) {
-        for (var cmd in settings[key]) {
-          var value = settings[key][cmd];
+      for (var breakpoint in breakpoints) {
+        for (var key in breakpoints[breakpoint]) {
+          // Skip any non-dimensional properties.
+          if (key == 'bp' || key == 'css' || key == 'toggle_handler') {
+            continue;
+          }
+
+          var value = breakpoints[breakpoint][key];
+
           // If the result changes, the condition has changed, so we need
           // to reload.
-          var now = this.checkCondition(cmd, $window.width(), $window.height(), value);
-          var before = this.checkCondition(cmd, this.width, this.height, value);
+          var now = this.checkCondition(key, value, $window.width(), $window.height());
+          var before = this.checkCondition(key, value, this.width, this.height);
 
           if (now !== before) {
             window.location.reload(true);
 
             // FF prevents reload in onRsize event, so we need to do it
             // in a timeout. See issue #1859058
-            if ('mozilla' in $.browser)  {
-              setTimeout(function() {
+            if ('mozilla' in $.browser) {
+              setTimeout(function () {
                 window.location.reload(true);
               }, 10);
             }
@@ -72,9 +108,14 @@
           }
         }
       }
+
     },
 
-    checkCondition: function(condition, width, height, value) {
+    checkCondition: function (condition, value, width, height) {
+      /**
+       * Used to check if a media query condition is met.
+       */
+
       var flag = null;
 
       switch (condition) {
@@ -119,118 +160,121 @@
       }
 
       return flag;
+
     },
-    checkForLoad: function(url, element) {
+
+    checkForLoad: function (url, element) {
       /**
        * Checks if a pane should be loaded given the current screen size.
        */
+
       var settings = Drupal.settings.breakpoint_panels_breakpoint;
+      var breakpoints = settings['breakpoints'];
+
       var parent_el = element.parent();
-      var this_shown = false;
-      if (settings['breakpoints'] != 'undefined') {
-        for (var key in settings['breakpoints']) {
-          var cur_bp = settings['breakpoints'][key];
-          if (
-            !parent_el.hasClass('hide-' + cur_bp['css'])
-            || settings['loadhidden']
-            || (settings['adminload'] && settings['isloggedin'])
-          ) {
-            if (settings['hasEnquire']) {
-              var that = this;
-              enquire.register(cur_bp['bp'], {
-                match: function() {
-                  that.fetch_pane(url, element);
-                  element.closest('.panel-pane').show();
-                },
-                unmatch: function() {
-                  // Hide closest ancestor of class panel-pane to make sure any styles.
-                  // applied to the pane are also hidden.
-                  element.closest('.panel-pane').hide();
-                }
-              });
-            }
-            else {
-              // Fallback psuedo-gracefully if enquire was not found.
-              this.fetch_pane(url, element);
-            }
+      // var this_shown = false;
+      for (var breakpoint in breakpoints) {
+       // var cur_bp = settings['breakpoints'][key];
+        if (
+          !parent_el.hasClass('hide-' + breakpoints[breakpoint]['css'])
+          || settings['loadhidden']
+          || (settings['adminload'] && settings['isloggedin'])
+        ) {
+          if (settings['hasEnquire']) {
+            var that = this;
+            enquire.register(breakpoints[breakpoint]['bp'], {
+              match: function () {
+                that.fetch_pane(url, element);
+                //element.closest('.panel-pane').show();
+            },
+              unmatch: function () {
+                // Hide closest ancestor of class panel-pane to make sure any styles.
+                // applied to the pane are also hidden.
+                //element.closest('.panel-pane').hide();
+              }
+            });
           }
           else {
-            if (settings['hasEnquire']) {
-              enquire.register(cur_bp['bp'], {
-                match: function() {
-                  element.closest('.panel-pane').hide();
-                },
-                unmatch: function() {
-                  element.closest('.panel-pane').show();
-                }
-              });
-            }
+            // Fallback pseudo-gracefully if enquire was not found.
+            this.fetch_pane(url, element);
           }
         }
+//        else {
+//          if (settings['hasEnquire']) {
+//            enquire.register(breakpoints[breakpoint]['bp'], {
+//              match: function () {
+//                element.closest('.panel-pane').hide();
+//              },
+//              unmatch: function () {
+//                element.closest('.panel-pane').show();
+//              }
+//            });
+//          }
+//        }
       }
+
     },
+
     checkForEditing: function (x) {
-      // check if save button is there
-      x = (x) ? x :0;
+      /**
+       * Set up the breakpoint panels editing within IPE.
+       */
+
+      // Check if the IPE save button is there.
+      x = (x) ? x : 0;
       var that = this;
-      if ($('#panels-ipe-save').length<1) {
-        //nope, wait more
+      if ($('#panels-ipe-save').length < 1) {
+        // Nope, wait more.
         x++;
-        if(x<10) {
-          setTimeout(function(){that.checkForEditing(x);},500);
+        if (x < 10) {
+          setTimeout(function () {
+            that.checkForEditing(x);
+          }, 500);
         }
         return;
       }
-      // do stuff to the save bar
+
       var settings = Drupal.settings.breakpoint_panels_breakpoint;
-      var $window = $(window);
-      var sizes = {};
-      for (var key in settings) {
-        keys = key.split('.');
-        if (keys.length>1) {
-          sizes[keys[2]] = settings[key];
-        }
-        for (var cmd in settings[key]) {
+      var breakpoints = settings['breakpoints'];
 
-        }
-      }
-
-      if($('.toggleResponsive').length<1) {
+      // Setup the toggle responsive button.
+      if ($('.toggleResponsive').length < 1) {
         $('#panels-ipe-edit-control-form div').prepend("<div class='toggleResponsive icon-large icon-eye-open'>Toggle Responsive</div>");
-        $('.toggleResponsive').click(function(){
-          if(!$(this).hasClass('active')) {
-            for (size in sizes) {
-              var bp = sizes[size].bp;
-              var css = sizes[size].css;
-              if (settings.hasEnquire == true) {
-                eval("enquire.register(bp, { match : function() { $('." + css + "').parent().parent().hide();}, unmatch : function() { $('." + css + "').parent().parent().show(); }, });");
+        $('.toggleResponsive').click(function () {
+          if (!$(this).hasClass('active')) {
+
+            for (var breakpoint in breakpoints) {
+              if (settings['hasEnquire'] == true) {
+                enquire.register(breakpoints[breakpoint]['bp'], breakpoints[breakpoint]['toggle_handler']);
               }
             }
+
             $(this).addClass('active icon-eye-close');
             $(this).removeClass('icon-eye-open');
             $('.panels-ipe-editing').addClass('hide-responsive');
-          } else {
-            for (size in sizes) {
-              $('.' + sizes[size].css).show();
-              if (settings.hasEnquire == true) {
-                enquire.unregister(sizes[size].bp);
+          }
+          else {
+            for (var breakpoint in breakpoints) {
+              $('.hide-' + breakpoints[breakpoint]['css']).show();
+              if (settings['hasEnquire'] == true) {
+                enquire.unregister(breakpoints[breakpoint]['bp'], breakpoints[breakpoint]['toggle_handler']);
               }
             }
+
             $(this).removeClass('active icon-eye-close');
             $(this).addClass('icon-eye-open');
             $('.panels-ipe-editing').removeClass('hide-responsive');
           }
-          if (settings.hasEnquire == true) {
-            enquire.listen();
-            //enquire.fire();// enquire.fire(); // Enquire doesn't seem to have this method.
-          }
         });
       }
+
     },
-    fetch_pane: function(url, element) {
+
+    fetch_pane: function (url, element) {
       /**
        * Does an AJAX request for the pane contents if it has not yet been loaded.
        */
+
       if (!element.hasClass('processed')) {
         $.ajax({
           url: url,
@@ -244,7 +288,9 @@
           }
         });
       }
+
     }
+
   };
 
 })(jQuery);
