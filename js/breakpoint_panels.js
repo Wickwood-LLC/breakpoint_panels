@@ -16,9 +16,10 @@
       var that = this;
 
       // Setup the toggle responsive handlers for use in enquire.js.
+      // These are required or an unregister call will blow away handles that are still needed.
       for (var breakpoint in breakpoints) {
-        var css = breakpoints[breakpoint]['css']
-        var handler = {
+        var css = breakpoints[breakpoint]['css'];
+        Drupal.settings.breakpoint_panels_breakpoint['breakpoints'][breakpoint]['toggle_handler'] = {
           match: function () {
             $('.hide-' + css).parent().parent().hide();
           },
@@ -26,7 +27,6 @@
             $('.hide-' + css).parent().parent().show();
           }
         };
-        Drupal.settings.breakpoint_panels_breakpoint['breakpoints'][breakpoint]['toggle_handler'] = handler;
       }
 
       // Check to see if an admin is using the IPE.
@@ -45,6 +45,18 @@
       // For each AJAX pane check if it should be loaded and register enquire match.
       $('.bp-ajax-pane').each(function () {
         var element = $(this);
+
+        // Kick the hide-* styles up the the .panel-pane to make sure any styles applied to the pane
+        // do not still show even if the contents are just a placeholder.
+        var parent_classes = element.parent().attr('class').split(/\s+/);
+        var pane_ancestor = element.closest('.panel-pane');
+        if (parent_classes.length) {
+          for (var style in parent_classes) {
+            pane_ancestor.addClass(parent_classes[style]);
+          }
+        }
+
+        // Setup the enquire.js AJAX loading based on breakpoints.
         var url = element.attr('data-src');
         that.checkForLoad(url, element);
       });
@@ -59,7 +71,7 @@
       if (this.width && this.height) {
         this.checkForReload();
       }
-      $window = $(window);
+      var $window = $(window);
       this.width = $window.width();
       this.height = $window.height()
 
@@ -182,35 +194,18 @@
         ) {
           if (settings['hasEnquire']) {
             var that = this;
+            // If at any point the media query is met, make sure the pane contents are loaded via AJAX.
             enquire.register(breakpoints[breakpoint]['bp'], {
               match: function () {
                 that.fetch_pane(url, element);
-                //element.closest('.panel-pane').show();
-            },
-              unmatch: function () {
-                // Hide closest ancestor of class panel-pane to make sure any styles.
-                // applied to the pane are also hidden.
-                //element.closest('.panel-pane').hide();
               }
             });
           }
           else {
-            // Fallback pseudo-gracefully if enquire was not found.
+            // Fallback pseudo-gracefully if enquire.js was not found.
             this.fetch_pane(url, element);
           }
         }
-//        else {
-//          if (settings['hasEnquire']) {
-//            enquire.register(breakpoints[breakpoint]['bp'], {
-//              match: function () {
-//                element.closest('.panel-pane').hide();
-//              },
-//              unmatch: function () {
-//                element.closest('.panel-pane').show();
-//              }
-//            });
-//          }
-//        }
       }
 
     },
@@ -224,7 +219,7 @@
       x = (x) ? x : 0;
       var that = this;
       if ($('#panels-ipe-save').length < 1) {
-        // Nope, wait more.
+        // Nope, wait more and try a few more times for good measure.
         x++;
         if (x < 10) {
           setTimeout(function () {
@@ -243,9 +238,9 @@
         $('.toggleResponsive').click(function () {
           if (!$(this).hasClass('active')) {
 
-            for (var breakpoint in breakpoints) {
+            for (var breakpoint_r in breakpoints) {
               if (settings['hasEnquire'] == true) {
-                enquire.register(breakpoints[breakpoint]['bp'], breakpoints[breakpoint]['toggle_handler']);
+                enquire.register(breakpoints[breakpoint_r]['bp'], breakpoints[breakpoint_r]['toggle_handler']);
               }
             }
 
@@ -254,10 +249,10 @@
             $('.panels-ipe-editing').addClass('hide-responsive');
           }
           else {
-            for (var breakpoint in breakpoints) {
-              $('.hide-' + breakpoints[breakpoint]['css']).show();
+            for (var breakpoint_u in breakpoints) {
+              $('.hide-' + breakpoints[breakpoint_u]['css']).show();
               if (settings['hasEnquire'] == true) {
-                enquire.unregister(breakpoints[breakpoint]['bp'], breakpoints[breakpoint]['toggle_handler']);
+                enquire.unregister(breakpoints[breakpoint_u]['bp'], breakpoints[breakpoint_u]['toggle_handler']);
               }
             }
 
