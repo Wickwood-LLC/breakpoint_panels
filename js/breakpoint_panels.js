@@ -7,7 +7,10 @@
        */
 
       // If no breakpoints found, then these are not the droids you're looking for, move along.
-      if (Drupal.settings.breakpoint_panels_breakpoint['breakpoints'] == 'undefined') {
+      if (
+        Drupal.settings.breakpoint_panels_breakpoint['breakpoints'] == 'undefined'
+        || Drupal.settings.breakpoint_panels_breakpoint['breakpoints']['hasEnquire'] == false
+      ) {
         return;
       }
       var settings = Drupal.settings.breakpoint_panels_breakpoint;

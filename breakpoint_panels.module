@@ -308,9 +308,50 @@ function breakpoint_panels_pane_settings_form_submit(&$form, &$form_state) {
  * Add the breakpoint panels configuration settings to js settings.
  */
 function breakpoint_panels_panels_pre_render($display) {
+  $settings = breakpoint_panels_get_config();
   drupal_add_js(array(
-    'breakpoint_panels_breakpoint' => breakpoint_panels_get_config(),
+    'breakpoint_panels_breakpoint' => $settings,
   ), 'setting');
+
+  // Set enquire.js requirement warning.
+  if (!$settings['hasEnquire']) {
+    $msg = t('Breakpoint Panels requires the enquire.js library. Please download the enquire.min.js file from http://wicky.nillia.ms/enquire.js/ and make sure it is here:<br/>/sites/<"all" or site>/libraries/enquire.js/enquire.min.js');
+
+    // Make sure we only set the message once instead of once for each pane on the page.
+    $existing_msgs = drupal_get_messages('error');
+    $exists = FALSE;
+    if (isset($existing_msgs['error'])) {
+      foreach ($existing_msgs['error'] as $m) {
+        if ($m == $msg) {
+          $exists = TRUE;
+        }
+      }
+    }
+
+    if (!$exists) {
+      drupal_set_message($msg, 'error');
+    }
+  }
+
+  // Set enquire.js requirement warning.
+  if (!$settings['hasMatchMedia']) {
+    $msg = t('The enquire.js library used by Breakpoint Panels will display more accurately on older browsers like IE if you install the MatchMedia.js library. Please download the matchMedia.js and matchMedia.addListener.js files from https://github.com/paulirish/matchMedia.js/ and make sure they are here:<br/>/sites/<"all" or site>/libraries/matchMedia.js/matchMedia.js<br/>/sites/<"all" or site>/libraries/matchMedia.js/matchMedia.addListener.js');
+
+    // Make sure we only set the message once instead of once for each pane on the page.
+    $existing_msgs = drupal_get_messages('warning');
+    $exists = FALSE;
+    if (isset($existing_msgs['warning'])) {
+      foreach ($existing_msgs['warning'] as $m) {
+        if ($m == $msg) {
+          $exists = TRUE;
+        }
+      }
+    }
+
+    if (!$exists) {
+      drupal_set_message($msg, 'warning');
+    }
+  }
 }
 
 /**
