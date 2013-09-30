@@ -24,10 +24,14 @@
         var css = breakpoints[breakpoint]['css'];
         Drupal.settings.breakpoint_panels_breakpoint['breakpoints'][breakpoint]['toggle_handler'] = {
           match: function () {
-            $('.hide-' + css).parent().parent().hide();
+            if($('.panels-ipe-editing').length < 1) {
+              $('.hide-' + css).hide();
+            }
           },
           unmatch: function () {
-            $('.hide-' + css).parent().parent().show();
+            if($('.panels-ipe-editing').length < 1) {
+              $('.hide-' + css).show();
+            }
           }
         };
       }
@@ -53,9 +57,12 @@
         // do not still show even if the contents are just a placeholder.
         var parent_classes = element.parent().attr('class').split(/\s+/);
         var pane_ancestor = element.closest('.panel-pane');
+        var ipe_ancestor = element.closest('.panels-ipe-portlet-wrapper');
         if (parent_classes.length) {
           for (var style in parent_classes) {
+            element.removeClass(parent_classes[style]);
             pane_ancestor.addClass(parent_classes[style]);
+            ipe_ancestor.addClass('ipe-' + parent_classes[style]);
           }
         }
 
@@ -253,7 +260,7 @@
           }
           else {
             for (var breakpoint_u in breakpoints) {
-              $('.hide-' + breakpoints[breakpoint_u]['css']).show();
+              // $('.hide-' + breakpoints[breakpoint_u]['css']).show();
               if (settings['hasEnquire'] == true) {
                 enquire.unregister(breakpoints[breakpoint_u]['bp'], breakpoints[breakpoint_u]['toggle_handler']);
               }

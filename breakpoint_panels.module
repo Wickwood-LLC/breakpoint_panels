@@ -600,7 +600,7 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
     }
 
     // Add to the CSS string.
-    $css .= '@media ' . $bp->breakpoint . ' { .hide-' . $bp->breakpoint_panels_name . ' { display:none } } .panels-ipe-editing ' . '.hide-' . $bp->breakpoint_panels_name . ' { display:block }';
+    $css .= '@media ' . $bp->breakpoint . ' { .hide-' . $bp->breakpoint_panels_name . ' { display:none } .hide-responsive.panels-ipe-editing .ipe-hide-' . $bp->breakpoint_panels_name . ' { display:none } } .panels-ipe-editing ' . '.hide-' . $bp->breakpoint_panels_name . ' { display:block }';
   }
 
   // Add the needed CSS to the page.
