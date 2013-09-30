@@ -407,8 +407,22 @@ function breakpoint_panels_get_config() {
   $conf['loadhidden'] = (variable_get('breakpoint_panels_load_hidden', 'no') != 'no') ? TRUE : FALSE;
   $conf['showtypes'] = variable_get('breakpoint_panels_show_types', 'all');
   $conf['isloggedin'] = user_is_logged_in();
-  $conf['hasEnquire'] = libraries_get_path('enquire.js') ? TRUE : FALSE;
-  $conf['hasMatchMedia'] = libraries_get_path('matchMedia.js') ? TRUE : FALSE;
+
+  $conf['hasEnquire'] = FALSE;
+  $enquire_path = libraries_get_path('enquire.js');
+  if ($enquire_path && file_exists($enquire_path . '/enquire.min.js')) {
+    $conf['hasEnquire'] = TRUE;
+  }
+
+  $conf['hasMatchMedia'] = FALSE;
+  $matchMedia_path = libraries_get_path('matchMedia.js');
+  if (
+    $matchMedia_path
+    && file_exists($matchMedia_path . '/matchMedia.js')
+    && file_exists($matchMedia_path . '/matchMedia.addListener.js')
+  ) {
+    $conf['hasMatchMedia'] = TRUE;
+  }
 
   return $conf;
 }
