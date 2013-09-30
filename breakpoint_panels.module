@@ -183,7 +183,9 @@ function breakpoint_panels_pane_settings_form($style_settings, $form_state) {
   foreach ($bps as $bp) {
     $default = TRUE;
     if (!empty($pane->configuration['breakpoints'])) {
-      $default = $pane->configuration['breakpoints'][$bp->breakpoint_panels_name];
+      if (isset($pane->configuration['breakpoints'][$bp->breakpoint_panels_name])) {
+        $default = $pane->configuration['breakpoints'][$bp->breakpoint_panels_name];
+      }
     }
 
     $form[$bp->breakpoint_panels_name] = array(
@@ -723,7 +725,7 @@ function breakpoint_panels_get_breakpoints() {
       $base = $bp->machine_name;
     }
 
-    $breakpoints[$ix]->breakpoint_panels_name = drupal_clean_css_identifier($base . '-' . $bp->id);
+    $breakpoints[$ix]->breakpoint_panels_name = drupal_clean_css_identifier(str_replace('.', '-', $bp->machine_name));
   }
 
   return $breakpoints;
