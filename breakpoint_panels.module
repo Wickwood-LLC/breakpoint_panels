@@ -140,9 +140,10 @@ function breakpoint_panels_panels_ipe_pane_links_alter(&$links, $pane, $display)
  * Implements hook_get_pane_links_alter().
  */
 function breakpoint_panels_get_pane_links_alter(&$links, $pane) {
+  list($task_id, $subtask_id) = explode('-', arg(5));
   $links['style']['breakpoint_settings'] = array(
     'title' => t('Breakpoint settings'),
-    'href' => 'breakpoint_panels/nojs/settings/form/' . $pane->pid . '/' . $pane->did,
+    'href' => 'breakpoint_panels/nojs/settings/form/' . $pane->pid . '/' . $task_id  . '/' . $subtask_id,
     'attributes' => array('class' => array('ctools-use-modal')),
   );
 }
@@ -150,14 +151,21 @@ function breakpoint_panels_get_pane_links_alter(&$links, $pane) {
 /**
  * Creates a modal popup.
  */
-function breakpoint_panels_modal_popup($js = NULL, $pid = 0, $did = 0) {
+function breakpoint_panels_modal_popup($js = NULL, $pid = 0, $did = 0, $sub_task_id = '') {
   // degrade to no js
   $form_state = array(
     'title' => t('Breakpoints'),
     'ajax' => TRUE,
     'pid' => $pid,
-    'did' => $did,
   );
+  if (is_numeric($did)) {
+    $form_state['did'] = $did;
+  }
+  else {
+    $form_state['task_id'] = $did;
+    $form_state['subtask_id'] = $sub_task_id;
+  }
+
   if (!$js) {
     return drupal_get_form('breakpoint_panels_pane_settings_form', null, $pid);
   }
@@ -183,13 +191,28 @@ function breakpoint_panels_pane_settings_form($style_settings, $form_state) {
   $form = array();
   $bps = breakpoint_panels_get_breakpoints();
 
-  // todo: Currently this only works with panes that are in the DB as opposed to in code.
   $pid = $form_state['pid'];
-  $did = $form_state['did'];
+  $did = isset($form_state['did']) ? $form_state['did'] : NULL;
+  $task_id = isset($form_state['task_id']) ? $form_state['task_id'] : '';
+  $subtask_id = isset($form_state['subtask_id']) ? $form_state['subtask_id'] : '';
 
-  // Load the pane so that we can check for existing breakpoint settings.
-  $panel = panels_load_display($did);
-  $pane = $panel->content[$pid];
+
+  if (!isset($did)) {
+    // Load the page and the task object.
+    ctools_include('context-task-handler');
+    $task = page_manager_get_task($task_id);
+
+    // Load the available task handlers, which allows us to access the display.
+    $handlers = page_manager_load_sorted_handlers($task, $subtask_id, TRUE);
+    $id = ctools_context_handler_get_render_handler($task, $subtask_id, $handlers, array(), array());
+
+    // Load the display object.
+    $display = $handlers[$id]->conf['display'];
+  }
+  else {
+   $display = panels_load_display($did);
+  }
+  $pane = $display->content[$pid];
 
   // Loop through the breakpoints and check for existing settings.
   foreach ($bps as $bp) {
@@ -505,7 +528,7 @@ function breakpoint_panels_parse($query) {
  *
  * Some code here taken from / inspired by the ajax_pane project. Thank you to creaoy, twistor, and undertext.
  */
-function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $context) {
+function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $context, panels_renderer_standard $renderer, panels_display $display) {
 
   // Check if the processing is even required, if not return.
   if (
@@ -556,11 +579,14 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
     drupal_add_js($path . '/matchMedia.js');
   }
 
-  // todo: may need to improve support for contexts.
   $pass_context = array();
-  if (!empty($pane->did)) {
-    $pass_context['did'] = $pane->did;
-  }
+
+  // Load the current page manager handler object to get the name.
+  $task_context = page_manager_get_current_page();
+  list($task, $subtask) = explode('-', $task_context['name']);
+  $pass_context['task'] = $task;
+  $pass_context['subtask'] = $subtask;
+
   if (!empty($pane->pid)) {
     $pass_context['pid'] = $pane->pid;
   }
@@ -645,6 +671,7 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '') {
   // Make sure required ctools functions/methods will be available.
   ctools_include('plugins', 'panels');
   ctools_include('content');
+  ctools_include('context-task-handler');
 
   // todo: may be able to better accomodate a more universal context support.
   // Check for a context and decode it.
@@ -652,11 +679,22 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '') {
   if (!empty($encoded_context)) {
     $context = unserialize(base64_decode($encoded_context));
   }
-  $did = (isset($context['did']) && is_numeric($context['did'])) ? $context['did'] : 0;
-  $pid = (isset($context['pid']) && is_numeric($context['pid'])) ? $context['pid'] : 0;
+  $task_id = $context['task'];
+  $subtask_id = isset($context['subtask']) ? $context['subtask'] : '';
+
+  // @todo Decide whether we should throw a 404 given that we have not enough
+  //   context.
+  $pid = !empty($context['pid']) ? $context['pid'] : 0;
+
+  // Load the page and the task object.
+  $task = page_manager_get_task($task_id);
+
+  // Load the available task handlers, which allows us to access the display.
+  $handlers = page_manager_load_sorted_handlers($task, $subtask_id, TRUE);
+  $id = ctools_context_handler_get_render_handler($task, $subtask_id, $handlers, array(), array());
 
   // Load the display object.
-  $display = panels_load_display($did);
+  $display = $handlers[$id]->conf['display'];
 
   // If the pane uses panelizer then we need to load the context of the entity/node being viewed.
   if (!empty($context['panelizer'])) {
@@ -699,8 +737,7 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '') {
     'display' => $display,
   );
   echo theme('panels_pane', $variables);
-
-  die();
+  drupal_exit();
 }
 
 /**
