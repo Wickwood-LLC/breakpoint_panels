@@ -124,11 +124,13 @@ function breakpoint_panels_settings($form, $form_state) {
  * Displays the "BP" button in the IPE.
  */
 function breakpoint_panels_panels_ipe_pane_links_alter(&$links, $pane, $display) {
-  // todo: Currently this only works with panes that are in the DB as opposed to in code.
-  if (!empty($pane['pane']->did)) {
+  $current_page = page_manager_get_current_page();
+  if ( !empty($pane['pane']->pid) && !empty($current_page['task']['name']) ) {
+    $task_id = $current_page['task']['name'];
+    $subtask_id = (empty($current_page['subtask']['name']))? '' : $current_page['subtask']['name'];
     $links['global'] = array(
-      'title' => t('BP'),
-      'href' => 'breakpoint_panels/nojs/settings/form/' . $pane['pane']->pid . '/' . $pane['pane']->did,
+      'title' => t('Breakpoint settings'),
+      'href' => 'breakpoint_panels/nojs/settings/form/' . $pane['pane']->pid . '/' . $task_id . '/' . $subtask_id,
       'attributes' => array(
         'class' => 'ctools-use-modal ctools-modal-modal-popup-small',
       ),
@@ -140,12 +142,21 @@ function breakpoint_panels_panels_ipe_pane_links_alter(&$links, $pane, $display)
  * Implements hook_get_pane_links_alter().
  */
 function breakpoint_panels_get_pane_links_alter(&$links, $pane) {
-  list($task_id, $subtask_id) = explode('-', arg(5));
-  $links['style']['breakpoint_settings'] = array(
-    'title' => t('Breakpoint settings'),
-    'href' => 'breakpoint_panels/nojs/settings/form/' . $pane->pid . '/' . $task_id  . '/' . $subtask_id,
-    'attributes' => array('class' => array('ctools-use-modal')),
-  );
+  if (!empty($pane->pid)) {
+    $taskarg = arg(5);
+    if (stristr($taskarg, '-')) {
+      list($task_id, $subtask_id) = explode('-', $taskarg);
+    }
+    else {
+      $task_id = $taskarg;
+      $subtask_id = '';
+    }
+    $links['style']['breakpoint_settings'] = array(
+      'title' => t('Breakpoint settings'),
+      'href' => 'breakpoint_panels/nojs/settings/form/' . $pane->pid . '/' . $task_id . '/' . $subtask_id,
+      'attributes' => array('class' => array('ctools-use-modal')),
+    );
+  }
 }
 
 /**
@@ -158,6 +169,7 @@ function breakpoint_panels_modal_popup($js = NULL, $pid = 0, $did = 0, $sub_task
     'ajax' => TRUE,
     'pid' => $pid,
   );
+  $form_state['pid'] = $pid;
   if (is_numeric($did)) {
     $form_state['did'] = $did;
   }
@@ -165,9 +177,8 @@ function breakpoint_panels_modal_popup($js = NULL, $pid = 0, $did = 0, $sub_task
     $form_state['task_id'] = $did;
     $form_state['subtask_id'] = $sub_task_id;
   }
-
   if (!$js) {
-    return drupal_get_form('breakpoint_panels_pane_settings_form', null, $pid);
+    return drupal_get_form('breakpoint_panels_pane_settings_form', NULL, $pid);
   }
   ctools_include('modal');
   ctools_include('ajax');
@@ -178,7 +189,7 @@ function breakpoint_panels_modal_popup($js = NULL, $pid = 0, $did = 0, $sub_task
     $output[] = ctools_modal_command_dismiss(t('Success!'));
   }
   print ajax_render($output);
-  exit;
+  drupal_exit();
 }
 
 /**
@@ -196,7 +207,6 @@ function breakpoint_panels_pane_settings_form($style_settings, $form_state) {
   $task_id = isset($form_state['task_id']) ? $form_state['task_id'] : '';
   $subtask_id = isset($form_state['subtask_id']) ? $form_state['subtask_id'] : '';
 
-
   if (!isset($did)) {
     // Load the page and the task object.
     ctools_include('context-task-handler');
@@ -206,11 +216,25 @@ function breakpoint_panels_pane_settings_form($style_settings, $form_state) {
     $handlers = page_manager_load_sorted_handlers($task, $subtask_id, TRUE);
     $id = ctools_context_handler_get_render_handler($task, $subtask_id, $handlers, array(), array());
 
+    if (empty($id)) {
+      // check handlers for display with our pid.
+      foreach ($handlers as $our_id => $handler) {
+        if (!empty($handler->conf['display']->content[$pid])) {
+          $id = $our_id;
+          break;
+        }
+      }
+    }
     // Load the display object.
-    $display = $handlers[$id]->conf['display'];
+    if (!empty($handlers[$id]->conf['display'])) {
+      $display = $handlers[$id]->conf['display'];
+    }
+    elseif (!empty($handlers[$id]->conf['did'])) {
+      $display = panels_load_display($handlers[$id]->conf['did']);
+    }
   }
   else {
-   $display = panels_load_display($did);
+    $display = panels_load_display($did);
   }
   $pane = $display->content[$pid];
 
@@ -232,11 +256,19 @@ function breakpoint_panels_pane_settings_form($style_settings, $form_state) {
 
   $form['submit'] = array(
     '#type' => 'submit',
-    '#value' => t('Submit'),
+    '#value' => t('Save'),
   );
   $form['pid'] = array(
     '#type' => 'hidden',
     '#value' => $pid,
+  );
+  $form['task_id'] = array(
+    '#type' => 'hidden',
+    '#value' => $task_id,
+  );
+  $form['subtask_id'] = array(
+    '#type' => 'hidden',
+    '#value' => $subtask_id,
   );
   $form['did'] = array(
     '#type' => 'hidden',
@@ -258,9 +290,27 @@ function breakpoint_panels_pane_settings_form_submit(&$form, &$form_state) {
   // todo: Currently this only works with panes that are in the DB as opposed to in code.
   $did = $form['did']['#value'];
   $pid = $form['pid']['#value'];
+  $task_id = $form['task_id']['#value'];
+  $subtask_id = $form['subtask_id']['#value'];
 
-  // Load the pane so that we can update the configuration.
-  $display = panels_load_display($did);
+  ctools_include('context-task-handler');
+  $task = page_manager_get_task($task_id);
+
+  // Load the available task handlers, which allows us to access the display.
+  $handlers = page_manager_load_sorted_handlers($task, $subtask_id, TRUE);
+  $id = ctools_context_handler_get_render_handler($task, $subtask_id, $handlers, array(), array());
+
+  // Load the display object.
+  if (!empty($handlers[$id]->conf['display'])) {
+    $display = $handlers[$id]->conf['display'];
+  }
+  elseif (!empty($handlers[$id]->conf['did'])) {
+    $display = panels_load_display($handlers[$id]->conf['did']);
+  }
+  if (empty($display)) {
+    // Load the pane so that we can update the configuration.
+    $display = panels_load_display($did);
+  }
   $pane = $display->content[$pid];
 
   // Clear out pre-existing settings, loop through all breakpoints.
@@ -310,7 +360,6 @@ function breakpoint_panels_pane_settings_form_submit(&$form, &$form_state) {
             if (!empty($display_cache->display->content)) {
               foreach ($display_cache->display->content as $dc_pid => $dc_pane) {
                 // Only update if the pid and did match.
-                // todo: Currently this only works with panes that are in the DB as opposed to in code.
                 if ($dc_pid == $pid && $dc_pane->did == $pane->did) {
                   // Update only the breakpoint settings so not to interfere with any other modules.
                   $cache->display_cache[$dc]->display->content[$dc_pid]->configuration['breakpoints'] = $pane->configuration['breakpoints'];
@@ -452,11 +501,11 @@ function breakpoint_panels_get_config() {
   }
 
   $conf['hasMatchMedia'] = FALSE;
-  $matchMedia_path = libraries_get_path('matchMedia.js');
+  $match_media_path = libraries_get_path('matchMedia.js');
   if (
-    $matchMedia_path
-    && file_exists($matchMedia_path . '/matchMedia.js')
-    && file_exists($matchMedia_path . '/matchMedia.addListener.js')
+    $match_media_path
+    && file_exists($match_media_path . '/matchMedia.js')
+    && file_exists($match_media_path . '/matchMedia.addListener.js')
   ) {
     $conf['hasMatchMedia'] = TRUE;
   }
@@ -583,9 +632,15 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
 
   // Load the current page manager handler object to get the name.
   $task_context = page_manager_get_current_page();
-  list($task, $subtask) = explode('-', $task_context['name']);
-  $pass_context['task'] = $task;
-  $pass_context['subtask'] = $subtask;
+  if (stristr($task_context['name'], '-')) {
+    list($task_id, $subtask_id) = explode('-', $task_context['name']);
+  }
+  else {
+    $task_id = $task_context['name'];
+    $subtask_id = '';
+  }
+  $pass_context['task'] = $task_id;
+  $pass_context['subtask'] = $subtask_id;
 
   if (!empty($pane->pid)) {
     $pass_context['pid'] = $pane->pid;
@@ -694,7 +749,12 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '') {
   $id = ctools_context_handler_get_render_handler($task, $subtask_id, $handlers, array(), array());
 
   // Load the display object.
-  $display = $handlers[$id]->conf['display'];
+  if (!empty($handlers[$id]->conf['display'])) {
+    $display = $handlers[$id]->conf['display'];
+  }
+  elseif (!empty($handlers[$id]->conf['did'])) {
+    $display = panels_load_display($handlers[$id]->conf['did']);
+  }
 
   // If the pane uses panelizer then we need to load the context of the entity/node being viewed.
   if (!empty($context['panelizer'])) {
