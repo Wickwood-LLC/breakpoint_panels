@@ -27,6 +27,7 @@ function breakpoint_panels_menu() {
     'page arguments' => array(1, 4, 5),
     'access callback' => TRUE,
     'type' => MENU_CALLBACK,
+    'theme callback' => 'ajax_base_page_theme',
   );
 
   // Ajax rendering of a specific pane.
@@ -133,6 +134,17 @@ function breakpoint_panels_panels_ipe_pane_links_alter(&$links, $pane, $display)
       ),
     );
   }
+}
+
+/**
+ * Implements hook_get_pane_links_alter().
+ */
+function breakpoint_panels_get_pane_links_alter(&$links, $pane) {
+  $links['style']['breakpoint_settings'] = array(
+    'title' => t('Breakpoint settings'),
+    'href' => 'breakpoint_panels/nojs/settings/form/' . $pane->pid . '/' . $pane->did,
+    'attributes' => array('class' => array('ctools-use-modal')),
+  );
 }
 
 /**
