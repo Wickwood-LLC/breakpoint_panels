@@ -34,7 +34,7 @@ function breakpoint_panels_menu() {
   $items['breakpoint-panels/get-pane/%'] = array(
     'title' => 'Breakpoint Panels AJAX pane handler',
     'page callback' => 'breakpoint_panels_panels_pane_handler',
-    'page arguments' => array(2),
+    'page arguments' => array(2,3),
     'access callback' => TRUE,
     'type' => MENU_CALLBACK,
   );
@@ -722,7 +722,7 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
  * If the pane uses context like with panelizer it can be passed as a base64 encoded serialized
  * array.
  */
-function breakpoint_panels_panels_pane_handler($encoded_context = '') {
+function breakpoint_panels_panels_pane_handler($encoded_context = '', $element_id='') {
   // Make sure required ctools functions/methods will be available.
   ctools_include('plugins', 'panels');
   ctools_include('content');
@@ -796,8 +796,12 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '') {
     'pane' => $pane,
     'display' => $display,
   );
-  echo theme('panels_pane', $variables);
-  drupal_exit();
+  $replace = theme('panels_pane', $variables);
+
+  $commands = array();
+  $commands[] = ajax_command_replace('#'.$element_id, $replace);
+  $page = array('#type' => 'ajax', '#commands' => $commands);
+  ajax_deliver($page);
 }
 
 /**

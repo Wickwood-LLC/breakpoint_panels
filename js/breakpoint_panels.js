@@ -279,19 +279,14 @@
       /**
        * Does an AJAX request for the pane contents if it has not yet been loaded.
        */
-
       if (!element.hasClass('processed')) {
-        $.ajax({
-          url: url,
-          type: 'GET',
-          dataType: 'html',
-          success: function (response) {
-            // Swap out the contents of the placeholder with the actual pane contents.
-            element.replaceWith(response);
-            // Flag as processed so that it will not load again.
-            element.addClass('processed');
-          }
-        });
+        var element_settings = {};
+        element_settings.progress = {};
+        element_settings.url = url + '/' + element.attr('id');
+        var base = element.attr('id');
+        var ajax = new Drupal.ajax(base, element, element_settings);
+        ajax.eventResponse(element, 'click');
+        element.addClass('processed');
       }
 
     }
