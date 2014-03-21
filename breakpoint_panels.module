@@ -34,7 +34,7 @@ function breakpoint_panels_menu() {
   $items['breakpoint-panels/get-pane/%'] = array(
     'title' => 'Breakpoint Panels AJAX pane handler',
     'page callback' => 'breakpoint_panels_panels_pane_handler',
-    'page arguments' => array(2,3),
+    'page arguments' => array(2, 3),
     'access callback' => TRUE,
     'type' => MENU_CALLBACK,
   );
@@ -727,7 +727,6 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '', $element_i
   ctools_include('plugins', 'panels');
   ctools_include('content');
   ctools_include('context-task-handler');
-
   // todo: may be able to better accomodate a more universal context support.
   // Check for a context and decode it.
   $context = array();
@@ -747,13 +746,33 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '', $element_i
   // Load the available task handlers, which allows us to access the display.
   $handlers = page_manager_load_sorted_handlers($task, $subtask_id, TRUE);
   $id = ctools_context_handler_get_render_handler($task, $subtask_id, $handlers, array(), array());
-
+  if (empty($id)) {
+    // check handlers for display with our pid.
+    foreach ($handlers as $our_id => $handler) {
+      if (empty($handler->conf['display']) && !empty($handler->conf['did'])) {
+        $temp_display = panels_load_display($handler->conf['did']);
+      }
+      else {
+        $temp_display = $handler->conf['display'];
+      }
+      if (!empty($temp_display->content[$pid])) {
+        $id = $our_id;
+        break;
+      }
+    }
+  }
   // Load the display object.
   if (!empty($handlers[$id]->conf['display'])) {
     $display = $handlers[$id]->conf['display'];
   }
   elseif (!empty($handlers[$id]->conf['did'])) {
     $display = panels_load_display($handlers[$id]->conf['did']);
+  }
+
+  if (!empty($context['args'])) {
+    $contexts = ctools_context_handler_get_task_contexts($task, $subtask_id, $context['args']);
+    $contexts = ctools_context_handler_get_handler_contexts($contexts, $display);
+    $display->context = $contexts;
   }
 
   // If the pane uses panelizer then we need to load the context of the entity/node being viewed.
@@ -781,6 +800,7 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '', $element_i
 
   // Find the pane.
   $pane = $display->content[$pid];
+
   // Set flag so that we don't rewrite content.
   $pane->ajax_rendering = TRUE;
 
@@ -796,10 +816,10 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '', $element_i
     'pane' => $pane,
     'display' => $display,
   );
-  $replace = theme('panels_pane', $variables);
 
+  $replace = theme('panels_pane', $variables);
   $commands = array();
-  $commands[] = ajax_command_replace('#'.$element_id, $replace);
+  $commands[] = ajax_command_replace('#' . $element_id, $replace);
   $page = array('#type' => 'ajax', '#commands' => $commands);
   ajax_deliver($page);
 }
