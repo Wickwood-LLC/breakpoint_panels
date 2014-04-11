@@ -207,35 +207,8 @@ function breakpoint_panels_pane_settings_form($style_settings, $form_state) {
   $task_id = isset($form_state['task_id']) ? $form_state['task_id'] : '';
   $subtask_id = isset($form_state['subtask_id']) ? $form_state['subtask_id'] : '';
 
-  if (!isset($did)) {
-    // Load the page and the task object.
-    ctools_include('context-task-handler');
-    $task = page_manager_get_task($task_id);
+  $display = _breakpoint_panels_get_display($pid, $task_id, $subtask_id, $did);
 
-    // Load the available task handlers, which allows us to access the display.
-    $handlers = page_manager_load_sorted_handlers($task, $subtask_id, TRUE);
-    $id = ctools_context_handler_get_render_handler($task, $subtask_id, $handlers, array(), array());
-
-    if (empty($id)) {
-      // check handlers for display with our pid.
-      foreach ($handlers as $our_id => $handler) {
-        if (!empty($handler->conf['display']->content[$pid])) {
-          $id = $our_id;
-          break;
-        }
-      }
-    }
-    // Load the display object.
-    if (!empty($handlers[$id]->conf['display'])) {
-      $display = $handlers[$id]->conf['display'];
-    }
-    elseif (!empty($handlers[$id]->conf['did'])) {
-      $display = panels_load_display($handlers[$id]->conf['did']);
-    }
-  }
-  else {
-    $display = panels_load_display($did);
-  }
   $pane = $display->content[$pid];
 
   // Loop through the breakpoints and check for existing settings.
@@ -296,21 +269,8 @@ function breakpoint_panels_pane_settings_form_submit(&$form, &$form_state) {
   ctools_include('context-task-handler');
   $task = page_manager_get_task($task_id);
 
-  // Load the available task handlers, which allows us to access the display.
-  $handlers = page_manager_load_sorted_handlers($task, $subtask_id, TRUE);
-  $id = ctools_context_handler_get_render_handler($task, $subtask_id, $handlers, array(), array());
+  $display = _breakpoint_panels_get_display($pid, $task_id, $subtask_id, $did);
 
-  // Load the display object.
-  if (!empty($handlers[$id]->conf['display'])) {
-    $display = $handlers[$id]->conf['display'];
-  }
-  elseif (!empty($handlers[$id]->conf['did'])) {
-    $display = panels_load_display($handlers[$id]->conf['did']);
-  }
-  if (empty($display)) {
-    // Load the pane so that we can update the configuration.
-    $display = panels_load_display($did);
-  }
   $pane = $display->content[$pid];
 
   // Clear out pre-existing settings, loop through all breakpoints.
@@ -743,31 +703,7 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '', $element_i
   // Load the page and the task object.
   $task = page_manager_get_task($task_id);
 
-  // Load the available task handlers, which allows us to access the display.
-  $handlers = page_manager_load_sorted_handlers($task, $subtask_id, TRUE);
-  $id = ctools_context_handler_get_render_handler($task, $subtask_id, $handlers, array(), array());
-  if (empty($id)) {
-    // check handlers for display with our pid.
-    foreach ($handlers as $our_id => $handler) {
-      if (empty($handler->conf['display']) && !empty($handler->conf['did'])) {
-        $temp_display = panels_load_display($handler->conf['did']);
-      }
-      else {
-        $temp_display = $handler->conf['display'];
-      }
-      if (!empty($temp_display->content[$pid])) {
-        $id = $our_id;
-        break;
-      }
-    }
-  }
-  // Load the display object.
-  if (!empty($handlers[$id]->conf['display'])) {
-    $display = $handlers[$id]->conf['display'];
-  }
-  elseif (!empty($handlers[$id]->conf['did'])) {
-    $display = panels_load_display($handlers[$id]->conf['did']);
-  }
+  $display = _breakpoint_panels_get_display($pid, $task_id, $subtask_id);
 
   if (!empty($context['args'])) {
     $contexts = ctools_context_handler_get_task_contexts($task, $subtask_id, $context['args']);
@@ -822,6 +758,52 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '', $element_i
   $commands[] = ajax_command_replace('#' . $element_id, $replace);
   $page = array('#type' => 'ajax', '#commands' => $commands);
   ajax_deliver($page);
+}
+
+
+/**
+ * Internal method to get the display object of a pane.
+ */
+function _breakpoint_panels_get_display($pid=NULL, $task_id=NULL, $subtask_id=NULL, $did=NULL) {
+  // Make sure required ctools functions/methods will be available.
+  ctools_include('plugins', 'panels');
+  ctools_include('content');
+  ctools_include('context-task-handler');
+
+  // Load the page and the task object.
+  $task = page_manager_get_task($task_id);
+
+  // Load the available task handlers, which allows us to access the display.
+  $handlers = page_manager_load_sorted_handlers($task, $subtask_id, TRUE);
+  $id = ctools_context_handler_get_render_handler($task, $subtask_id, $handlers, array(), array());
+  if (empty($id)) {
+    // check handlers for display with our pid.
+    foreach ($handlers as $our_id => $handler) {
+      if (empty($handler->conf['display']) && !empty($handler->conf['did'])) {
+        $temp_display = panels_load_display($handler->conf['did']);
+      }
+      else {
+        $temp_display = $handler->conf['display'];
+      }
+      if (!empty($temp_display->content[$pid])) {
+        $id = $our_id;
+        break;
+      }
+    }
+  }
+  // Load the display object.
+  if (!empty($handlers[$id]->conf['display'])) {
+    $display = $handlers[$id]->conf['display'];
+  }
+  elseif (!empty($handlers[$id]->conf['did'])) {
+    $display = panels_load_display($handlers[$id]->conf['did']);
+  }
+  // if fetching the display as usual did not work.
+  if (empty($display)) {
+    // Load the pane so that we can update the configuration.
+    $display = panels_load_display($did);
+  }
+  return $display;
 }
 
 /**
