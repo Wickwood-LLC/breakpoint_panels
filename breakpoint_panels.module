@@ -513,13 +513,13 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
   drupal_add_js(drupal_get_path('module', 'breakpoint_panels') . '/js/breakpoint_panels.js');
 
   // Load the supporting libraries if available.
+  if ($path = libraries_get_path('matchMedia.js')) {
+    drupal_add_js($path . '/matchMedia.js');
+    drupal_add_js($path . '/matchMedia.addlistener.js');
+  }
   if ($path = libraries_get_path('enquire.js')) {
     drupal_add_js($path . '/enquire.min.js');
   }
-  if ($path = libraries_get_path('matchMedia.js')) {
-    drupal_add_js($path . '/matchMedia.js');
-  }
-
   $pass_context = array();
 
   // Load the current page manager handler object to get the name.
