@@ -283,6 +283,7 @@
         var element_settings = {};
         element_settings.progress = {};
         element_settings.url = url + '/' + element.attr('id');
+        element_settings.event = 'click';
         var base = element.attr('id');
         var ajax = new Drupal.ajax(base, element, element_settings);
         ajax.eventResponse(element, 'click');
