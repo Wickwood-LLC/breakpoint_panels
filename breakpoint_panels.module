@@ -509,17 +509,18 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
   // swap out its contents for a placeholder and the content will be be loaded after
   // page load via AJAX to allow for caching to work between screen sizes.
 
-  // Load the modules .js file on the page
-  drupal_add_js(drupal_get_path('module', 'breakpoint_panels') . '/js/breakpoint_panels.js');
-
   // Load the supporting libraries if available.
   if ($path = libraries_get_path('matchMedia.js')) {
     drupal_add_js($path . '/matchMedia.js');
-    drupal_add_js($path . '/matchMedia.addlistener.js');
+    drupal_add_js($path . '/matchMedia.addListener.js');
   }
   if ($path = libraries_get_path('enquire.js')) {
     drupal_add_js($path . '/enquire.min.js');
   }
+
+  // Load the modules .js file on the page
+  drupal_add_js(drupal_get_path('module', 'breakpoint_panels') . '/js/breakpoint_panels.js');
+
   $pass_context = array();
 
   // Load the current page manager handler object to get the name.
