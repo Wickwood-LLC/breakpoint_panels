@@ -31,7 +31,7 @@ function breakpoint_panels_menu() {
   );
 
   // Ajax rendering of a specific pane.
-  $items['breakpoint-panels/get-pane/%'] = array(
+  $items['breakpoint-panels/get-pane/%/%'] = array(
     'title' => 'Breakpoint Panels AJAX pane handler',
     'page callback' => 'breakpoint_panels_panels_pane_handler',
     'page arguments' => array(2, 3),
@@ -124,13 +124,11 @@ function breakpoint_panels_settings($form, $form_state) {
  * Displays the "BP" button in the IPE.
  */
 function breakpoint_panels_panels_ipe_pane_links_alter(&$links, $pane, $display) {
-  $current_page = page_manager_get_current_page();
-  if ( !empty($pane['pane']->pid) && !empty($current_page['handler']) ) {
-    $handler = $current_page['handler'];
-    $cache_key = 'panel_context:' . $handler->task . '::' . $handler->name . '::::';
+  if (isset($pane['pane']->pid) && isset($pane['display']->cache_key)) {
+    $cache_key = $pane['display']->cache_key;
     $links['global'] = array(
       'title' => t('Breakpoint settings'),
-      'href' => 'breakpoint_panels/nojs/settings/form/' .$cache_key . '/' . $pane['pane']->pid,
+      'href' => 'breakpoint_panels/nojs/settings/form/' . $cache_key . '/' . $pane['pane']->pid,
       'attributes' => array(
         'class' => 'ctools-use-modal ctools-modal-modal-popup-small',
       ),
@@ -157,7 +155,7 @@ function breakpoint_panels_get_pane_links_alter(&$links, $pane) {
 
 /**
  * Creates a modal popup.
- * a lot of this code taken from panels_renderer_editor.class 
+ * a lot of this code taken from panels_renderer_editor.class
  */
 function breakpoint_panels_modal_popup($js = NULL, $cache_key, $pid) {
   ctools_include('display-edit', 'panels');
@@ -503,15 +501,12 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
 
   $pass_context = array();
 
-  // Load the current page manager handler object to get the name.
-  $task_context = page_manager_get_current_page();
-  if (stristr($task_context['name'], '-')) {
-    list($task_id, $subtask_id) = explode('-', $task_context['name']);
-  }
-  else {
-    $task_id = $task_context['name'];
-    $subtask_id = '';
-  }
+  list($context, $task_name, $handler_name) = explode(':', $display->cache_key);
+
+  $task = page_manager_get_task_id($task_name);
+
+  $task_id = $task[0];
+  $subtask_id = isset($task[1]) ? $task[1] : '';
   $pass_context['task'] = $task_id;
   $pass_context['subtask'] = $subtask_id;
 
