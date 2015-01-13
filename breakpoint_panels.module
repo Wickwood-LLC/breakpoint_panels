@@ -210,10 +210,7 @@ function breakpoint_panels_pane_settings_form($style_settings, $form_state) {
   $form = array();
   $bps = breakpoint_panels_get_breakpoints();
 
-  ctools_form_include($form_state, 'plugins', 'panels');
-  form_load_include($form_state, 'php', 'panels', '/plugins/display_renderers/panels_renderer_editor.class');
-  $display = &$form_state['display'];
-  $pane = &$form_state['pane'];
+  $pane = $form_state['pane'];
 
   // Loop through the breakpoints and check for existing settings.
   foreach ($bps as $bp) {
@@ -235,22 +232,6 @@ function breakpoint_panels_pane_settings_form($style_settings, $form_state) {
     '#type' => 'submit',
     '#value' => t('Save'),
   );
-  $form['pid'] = array(
-    '#type' => 'hidden',
-    '#value' => $pid,
-  );
-  $form['task_id'] = array(
-    '#type' => 'hidden',
-    '#value' => $task_id,
-  );
-  $form['subtask_id'] = array(
-    '#type' => 'hidden',
-    '#value' => $subtask_id,
-  );
-  $form['did'] = array(
-    '#type' => 'hidden',
-    '#value' => $did,
-  );
 
   return $form;
 }
@@ -263,8 +244,7 @@ function breakpoint_panels_pane_settings_form($style_settings, $form_state) {
  */
 function breakpoint_panels_pane_settings_form_submit(&$form, &$form_state) {
   $bps = breakpoint_panels_get_breakpoints();
-  $pane = &$form_state['pane'];
-  $display = $form_state['display'];
+  $pane = $form_state['pane'];
 
   $pane->configuration['breakpoints'] = array();
   foreach ($bps as $bp) {
@@ -619,6 +599,7 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '', $element_i
   // Make sure required ctools functions/methods will be available.
   ctools_include('plugins', 'panels');
   ctools_include('content');
+  ctools_include('context');
   ctools_include('context-task-handler');
   // todo: may be able to better accomodate a more universal context support.
   // Check for a context and decode it.
@@ -635,14 +616,11 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '', $element_i
 
   // Load the page and the task object.
   $task = page_manager_get_task($task_id);
+  $subtask = page_manager_get_task_subtask($task, $subtask_id);
 
-  $display = _breakpoint_panels_get_display($pid, $task_id, $subtask_id);
+  $contexts = ctools_context_handler_get_task_contexts($task, $subtask ? $subtask : array(), $context['args']);
 
-  if (!empty($context['args'])) {
-    $contexts = ctools_context_handler_get_task_contexts($task, $subtask_id, $context['args']);
-    $contexts = ctools_context_handler_get_handler_contexts($contexts, $display);
-    $display->context = $contexts;
-  }
+  $display = _breakpoint_panels_get_display($pid, $task, $subtask_id, $contexts, $context['args']);
 
   // If the pane uses panelizer then we need to load the context of the entity/node being viewed.
   if (!empty($context['panelizer'])) {
@@ -672,6 +650,11 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '', $element_i
   // Set flag so that we don't rewrite content.
   $pane->ajax_rendering = TRUE;
 
+  if (!empty($context['args'])) {
+    $contexts = ctools_context_handler_get_handler_contexts($contexts, $display);
+    $display->context = $contexts;
+  }
+
   // Find the renderer being used for this pane.
   $renderer = panels_get_renderer_handler($display->renderer, $display);
 
@@ -696,18 +679,16 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '', $element_i
 /**
  * Internal method to get the display object of a pane.
  */
-function _breakpoint_panels_get_display($pid=NULL, $task_id=NULL, $subtask_id=NULL, $did=NULL) {
+function _breakpoint_panels_get_display($pid=NULL, $task=NULL, $subtask_id=NULL, $context = array(), $args = array()) {
   // Make sure required ctools functions/methods will be available.
   ctools_include('plugins', 'panels');
   ctools_include('content');
   ctools_include('context-task-handler');
 
-  // Load the page and the task object.
-  $task = page_manager_get_task($task_id);
-
   // Load the available task handlers, which allows us to access the display.
-  $handlers = page_manager_load_sorted_handlers($task, $subtask_id, TRUE);
-  $id = ctools_context_handler_get_render_handler($task, $subtask_id, $handlers, array(), array());
+  $handlers = page_manager_load_sorted_handlers($task, $subtask_id ? $subtask_id : '', TRUE);
+
+  $id = ctools_context_handler_get_render_handler($task, $subtask_id ? $subtask_id : '', $handlers, $context, $args);
   if (empty($id)) {
     // check handlers for display with our pid.
     foreach ($handlers as $our_id => $handler) {
