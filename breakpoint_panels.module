@@ -501,9 +501,14 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
 
   $pass_context = array();
 
-  list($context, $task_name, $handler_name) = explode(':', $display->cache_key);
+  list($task_context, $handler_name, $args, $q) = explode('::', $display->cache_key, 4);
+  list($context, $task_name) = explode(':', $task_context);
 
   $task = page_manager_get_task_id($task_name);
+
+  if ($args) {
+    $arguments = explode('\\', $args);
+  }
 
   $task_id = $task[0];
   $subtask_id = isset($task[1]) ? $task[1] : '';
@@ -514,7 +519,7 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
     $pass_context['pid'] = $pane->pid;
   }
   if (!empty($args)) {
-    $pass_context['args'] = $args;
+    $pass_context['args'] = $arguments;
   }
 
   // Check for panelizer, and pass context so that it can be rebuilt.
@@ -615,7 +620,7 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '', $element_i
 
   $contexts = ctools_context_handler_get_task_contexts($task, $subtask ? $subtask : array(), $context['args']);
 
-  $display = _breakpoint_panels_get_display($pid, $task, $subtask_id, $contexts, $context['args']);
+  list($display, $handler) = _breakpoint_panels_get_display_and_handler($pid, $task, $subtask_id, $contexts, $context['args']);
 
   // If the pane uses panelizer then we need to load the context of the entity/node being viewed.
   if (!empty($context['panelizer'])) {
@@ -646,8 +651,8 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '', $element_i
   $pane->ajax_rendering = TRUE;
 
   if (!empty($context['args'])) {
-    $contexts = ctools_context_handler_get_handler_contexts($contexts, $display);
-    $display->context = $contexts;
+    $display->context = ctools_context_handler_get_handler_contexts($contexts, $handler);
+    $display->args = $context['args'];
   }
 
   // Find the renderer being used for this pane.
@@ -674,7 +679,7 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '', $element_i
 /**
  * Internal method to get the display object of a pane.
  */
-function _breakpoint_panels_get_display($pid=NULL, $task=NULL, $subtask_id=NULL, $context = array(), $args = array()) {
+function _breakpoint_panels_get_display_and_handler($pid=NULL, $task=NULL, $subtask_id=NULL, $context = array(), $args = array()) {
   // Make sure required ctools functions/methods will be available.
   ctools_include('plugins', 'panels');
   ctools_include('content');
@@ -711,7 +716,8 @@ function _breakpoint_panels_get_display($pid=NULL, $task=NULL, $subtask_id=NULL,
     // Load the pane so that we can update the configuration.
     $display = panels_load_display($did);
   }
-  return $display;
+
+  return array($display, $handlers[$id]);
 }
 
 /**
