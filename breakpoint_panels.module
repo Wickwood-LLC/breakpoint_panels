@@ -21,17 +21,17 @@ function breakpoint_panels_menu() {
   );
 
   // Modal pop-up form for assigning breakpoints to panes.
-  $items['breakpoint_panels/%ctools_js/settings/form/%/%'] = array(
+  $items['breakpoint_panels/%ctools_js/settings/form/%/%/%'] = array(
     'title' => t('Breakpoints Pane'),
     'page callback' => 'breakpoint_panels_modal_popup',
-    'page arguments' => array(1, 4, 5),
+    'page arguments' => array(1, 4, 5, 6),
     'access callback' => TRUE,
     'type' => MENU_CALLBACK,
     'theme callback' => 'ajax_base_page_theme',
   );
 
   // Ajax rendering of a specific pane.
-  $items['breakpoint-panels/get-pane/%/%'] = array(
+  $items['breakpoint-panels/get-pane/%'] = array(
     'title' => 'Breakpoint Panels AJAX pane handler',
     'page callback' => 'breakpoint_panels_panels_pane_handler',
     'page arguments' => array(2, 3),
@@ -128,7 +128,7 @@ function breakpoint_panels_panels_ipe_pane_links_alter(&$links, $pane, $display)
     $cache_key = $pane['display']->cache_key;
     $links['global'] = array(
       'title' => t('Breakpoint settings'),
-      'href' => 'breakpoint_panels/nojs/settings/form/' . $cache_key . '/' . $pane['pane']->pid,
+      'href' => 'breakpoint_panels/nojs/settings/form/' . $pane['renderer']->plugin['name'] . '/' . $cache_key . '/' . $pane['pane']->pid,
       'attributes' => array(
         'class' => 'ctools-use-modal ctools-modal-modal-popup-small',
       ),
@@ -147,7 +147,7 @@ function breakpoint_panels_get_pane_links_alter(&$links, $pane) {
 
     $links['style']['breakpoint_settings'] = array(
       'title' => t('Breakpoint settings'),
-      'href' => 'breakpoint_panels/nojs/settings/form/' . $cache_key . '/' . $pane->pid,
+      'href' => 'breakpoint_panels/nojs/settings/form/editor/' . $cache_key . '/' . $pane->pid,
       'attributes' => array('class' => array('ctools-use-modal')),
     );
   }
@@ -157,7 +157,7 @@ function breakpoint_panels_get_pane_links_alter(&$links, $pane) {
  * Creates a modal popup.
  * a lot of this code taken from panels_renderer_editor.class
  */
-function breakpoint_panels_modal_popup($js = NULL, $cache_key, $pid) {
+function breakpoint_panels_modal_popup($js = NULL, $plugin_name, $cache_key, $pid) {
   ctools_include('display-edit', 'panels');
   ctools_include('plugins', 'panels');
   ctools_include('ajax');
@@ -165,7 +165,7 @@ function breakpoint_panels_modal_popup($js = NULL, $cache_key, $pid) {
   ctools_include('context');
   ctools_include('content');
 
-  $plugin = panels_get_display_renderer('editor');
+  $plugin = panels_get_display_renderer($plugin_name);
   $cache = panels_edit_cache_get($cache_key);
   $renderer = panels_get_renderer_handler($plugin, $cache->display);
 
@@ -501,17 +501,14 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
 
   $pass_context = array();
 
-  list($task_context, $handler_name, $args, $q) = explode('::', $display->cache_key, 4);
-  list($context, $task_name) = explode(':', $task_context);
-
-  $task = page_manager_get_task_id($task_name);
-
-  if ($args) {
-    $arguments = explode('\\', $args);
+  $task_context = page_manager_get_current_page();
+  if (stristr($task_context['name'], '-')) {
+    list($task_id, $subtask_id) = explode('-', $task_context['name']);
   }
-
-  $task_id = $task[0];
-  $subtask_id = isset($task[1]) ? $task[1] : '';
+  else {
+    $task_id = $task_context['name'];
+    $subtask_id = '';
+  }
   $pass_context['task'] = $task_id;
   $pass_context['subtask'] = $subtask_id;
 
@@ -519,7 +516,11 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
     $pass_context['pid'] = $pane->pid;
   }
   if (!empty($args)) {
-    $pass_context['args'] = $arguments;
+    $pass_context['args'] = $args;
+  }
+
+  if (!empty($display->did)) {
+    $pass_context['did'] = $display->did;
   }
 
   // Check for panelizer, and pass context so that it can be rebuilt.
@@ -614,13 +615,15 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '', $element_i
   //   context.
   $pid = !empty($context['pid']) ? $context['pid'] : 0;
 
+  $did = !empty($context['did']) ? $context['did'] : 0;
+
   // Load the page and the task object.
   $task = page_manager_get_task($task_id);
   $subtask = page_manager_get_task_subtask($task, $subtask_id);
 
   $contexts = ctools_context_handler_get_task_contexts($task, $subtask ? $subtask : array(), $context['args']);
 
-  list($display, $handler) = _breakpoint_panels_get_display_and_handler($pid, $task, $subtask_id, $contexts, $context['args']);
+  list($display, $handler) = _breakpoint_panels_get_display_and_handler($pid, $task, $subtask_id, $contexts, $context['args'], $did);
 
   // If the pane uses panelizer then we need to load the context of the entity/node being viewed.
   if (!empty($context['panelizer'])) {
@@ -679,7 +682,7 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '', $element_i
 /**
  * Internal method to get the display object of a pane.
  */
-function _breakpoint_panels_get_display_and_handler($pid=NULL, $task=NULL, $subtask_id=NULL, $context = array(), $args = array()) {
+function _breakpoint_panels_get_display_and_handler($pid=NULL, $task=NULL, $subtask_id=NULL, $context = array(), $args = array(), $did) {
   // Make sure required ctools functions/methods will be available.
   ctools_include('plugins', 'panels');
   ctools_include('content');
