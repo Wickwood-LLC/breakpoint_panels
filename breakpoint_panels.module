@@ -139,11 +139,9 @@ function breakpoint_panels_panels_ipe_pane_links_alter(&$links, $pane, $display)
 /**
  * Implements hook_get_pane_links_alter().
  */
-function breakpoint_panels_get_pane_links_alter(&$links, $pane) {
+function breakpoint_panels_get_pane_links_alter(&$links, $pane, $content_type, $renderer) {
   if (!empty($pane->pid)) {
-    $taskarg = arg(5);
-    $handler = arg(7);
-    $cache_key = 'panel_context:' . $taskarg . '::' . $handler . '::::';
+    $cache_key = $renderer->display->cache_key;
 
     $links['style']['breakpoint_settings'] = array(
       'title' => t('Breakpoint settings'),
