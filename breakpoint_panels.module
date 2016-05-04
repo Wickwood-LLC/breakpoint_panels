@@ -36,10 +36,26 @@ function breakpoint_panels_menu() {
     'page callback' => 'breakpoint_panels_panels_pane_handler',
     'page arguments' => array(2, 3),
     'access callback' => TRUE,
+    'delivery callback' => 'breakpoint_panels_ajax_deliver',
     'type' => MENU_CALLBACK,
   );
 
   return $items;
+}
+
+/**
+ * Special wrapper delivery callback for ajax_deliver() to handle site offline
+ * situation.
+ * @param array $page_callback_result
+ */
+function breakpoint_panels_ajax_deliver($page_callback_result) {
+  if (is_int($page_callback_result)) {
+    switch ($page_callback_result) {
+      case MENU_SITE_OFFLINE:
+        $page_callback_result = array();
+    }
+  }
+  ajax_deliver($page_callback_result);
 }
 
 /**
@@ -673,7 +689,7 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '', $element_i
   $commands = array();
   $commands[] = ajax_command_replace('#' . $element_id, $replace);
   $page = array('#type' => 'ajax', '#commands' => $commands);
-  ajax_deliver($page);
+  return $page;
 }
 
 
