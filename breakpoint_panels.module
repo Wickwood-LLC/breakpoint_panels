@@ -776,3 +776,13 @@ function breakpoint_panels_get_breakpoints() {
 
   return $breakpoints;
 }
+
+/**
+ * Implements hook_boot()
+ */
+function breakpoint_panels_boot() {
+  if (arg(0) == 'breakpoint-panels' && arg(1) == 'get-pane') {
+    // Prevent ovelay JS and CSS from loading when processing get-page Ajax requests.
+    overlay_set_mode('none');
+  }
+}
