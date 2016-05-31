@@ -283,6 +283,13 @@
         var element_settings = {};
         element_settings.progress = {};
         element_settings.url = url + '/' + element.attr('id');
+        // 'data-query' attribute will be present if pane is view pane.
+        // Query parameters to be passed as part of URL. So, correct filtering
+        // will be applied.
+        var data_query = $(element).attr('data-query');
+        if (typeof data_query !== typeof undefined && data_query !== false) {
+          element_settings.url = element_settings.url + '?' + $.param(JSON.parse($('<textarea />').html(data_query).text()));
+        }
         element_settings.event = 'click';
         var base = element.attr('id');
         var ajax = new Drupal.ajax(base, element, element_settings);
