@@ -390,6 +390,8 @@ function breakpoint_panels_get_config() {
   ) {
     $conf['hasMatchMedia'] = TRUE;
   }
+  // Pass current Drupal query path, so Ajax requests can pass back it to server.
+  $conf['q'] = $_GET['q'];
 
   return $conf;
 }
@@ -596,7 +598,7 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
     $ipemessage = '<div class="ipemessage">' . $ipemessage . '<br /><br /></div>';
   }
   if ($pane->type == 'views_panes') {
-    $data_query = 'data-query="' . htmlentities(json_encode(drupal_get_query_parameters())) . '"';
+    $data_query = 'data-query="' . htmlentities(json_encode((object) drupal_get_query_parameters())) . '"';
   }
   else {
     $data_query = '';
@@ -801,5 +803,16 @@ function breakpoint_panels_form_views_exposed_form_alter(&$form, &$form_statet, 
   // 'breakpoint-panels/get-pane'.
   if (arg(0) == 'breakpoint-panels' && arg(1) == 'get-pane') {
     $form['#action'] = '';
+  }
+}
+
+/**
+ * Implements hook_views_pre_render().
+ */
+function breakpoint_panels_views_pre_render(&$view) {
+  if (arg(0) == 'breakpoint-panels' && arg(1) == 'get-pane') {
+    if (isset($_GET['bp_original_q'])) {
+      $_GET['q'] = html_entity_decode($_GET['bp_original_q']);
+    }
   }
 }
