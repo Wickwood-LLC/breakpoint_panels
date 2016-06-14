@@ -807,12 +807,16 @@ function breakpoint_panels_form_views_exposed_form_alter(&$form, &$form_statet, 
 }
 
 /**
- * Implements hook_views_pre_render().
+ * Implements hook_views_pre_execute().
  */
-function breakpoint_panels_views_pre_render(&$view) {
+function breakpoint_panels_views_pre_execute(&$view) {
+  // TODO: Need to think about whether we can move this logic to
+  // breakpoint_panels_panels_pane_handler(). So, it will work for all
+  // pane types.
   if (arg(0) == 'breakpoint-panels' && arg(1) == 'get-pane') {
     if (isset($_GET['bp_original_q'])) {
       $_GET['q'] = html_entity_decode($_GET['bp_original_q']);
+      unset($_GET['bp_original_q']);
     }
   }
 }
