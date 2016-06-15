@@ -788,9 +788,13 @@ function breakpoint_panels_get_breakpoints() {
  * Implements hook_boot()
  */
 function breakpoint_panels_boot() {
+  global $breakpoint_panels_ajax;
   if (arg(0) == 'breakpoint-panels' && arg(1) == 'get-pane') {
     // Prevent ovelay JS and CSS from loading when processing get-page Ajax requests.
     overlay_set_mode('none');
+    // Set global flag indicating that breakpoint_panel ajax request processing
+    // being doing.
+    $breakpoint_panels_ajax = TRUE;
   }
 }
 
@@ -798,10 +802,11 @@ function breakpoint_panels_boot() {
  * Implements hook_form_FORM_ID_alter()
  */
 function breakpoint_panels_form_views_exposed_form_alter(&$form, &$form_statet, $form_id) {
+  global $breakpoint_panels_ajax;
   // Clear action path views exposed form when views are rendered via breakpoint
   // panels get-pane ajax request. Or exposed form will get submitted to
   // 'breakpoint-panels/get-pane'.
-  if (arg(0) == 'breakpoint-panels' && arg(1) == 'get-pane') {
+  if ((isset($breakpoint_panels_ajax) && $breakpoint_panels_ajax) || (arg(0) == 'breakpoint-panels' && arg(1) == 'get-pane')) {
     $form['#action'] = '';
   }
 }
