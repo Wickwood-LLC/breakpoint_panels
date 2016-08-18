@@ -516,17 +516,18 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
   drupal_add_js(drupal_get_path('module', 'breakpoint_panels') . '/js/breakpoint_panels.js');
 
   $pass_context = array();
-
-  $task_context = page_manager_get_current_page();
-  if (stristr($task_context['name'], '-')) {
-    list($task_id, $subtask_id) = explode('-', $task_context['name']);
+  if (!module_exists('panels_mini') || !db_query("SELECT COUNT(pid) FROM {panels_mini} WHERE did = :did", array(':did' => $pane->did))->fetchField()) {
+    $task_context = page_manager_get_current_page();
+    if (stristr($task_context['name'], '-')) {
+      list($task_id, $subtask_id) = explode('-', $task_context['name']);
+    }
+    else {
+      $task_id = $task_context['name'];
+      $subtask_id = '';
+    }
+    $pass_context['task'] = $task_id;
+    $pass_context['subtask'] = $subtask_id;
   }
-  else {
-    $task_id = $task_context['name'];
-    $subtask_id = '';
-  }
-  $pass_context['task'] = $task_id;
-  $pass_context['subtask'] = $subtask_id;
 
   if (!empty($pane->pid)) {
     $pass_context['pid'] = $pane->pid;
