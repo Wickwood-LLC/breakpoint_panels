@@ -619,6 +619,13 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
  * array.
  */
 function breakpoint_panels_panels_pane_handler($encoded_context = '', $element_id='') {
+  // Earlier it was coded under breakpoint_panels_views_pre_execute().
+  // See git commit: 7eba93abbfb4c38b43015bd84bc6f1c5821aae2a
+  if (isset($_GET['bp_original_q'])) {
+    $_GET['q'] = html_entity_decode($_GET['bp_original_q']);
+    unset($_GET['bp_original_q']);
+  }
+
   // Make sure required ctools functions/methods will be available.
   ctools_include('plugins', 'panels');
   ctools_include('content');
@@ -809,20 +816,5 @@ function breakpoint_panels_form_views_exposed_form_alter(&$form, &$form_statet, 
   // 'breakpoint-panels/get-pane'.
   if ((isset($breakpoint_panels_ajax) && $breakpoint_panels_ajax) || (arg(0) == 'breakpoint-panels' && arg(1) == 'get-pane')) {
     $form['#action'] = '';
-  }
-}
-
-/**
- * Implements hook_views_pre_execute().
- */
-function breakpoint_panels_views_pre_execute(&$view) {
-  // TODO: Need to think about whether we can move this logic to
-  // breakpoint_panels_panels_pane_handler(). So, it will work for all
-  // pane types.
-  if (arg(0) == 'breakpoint-panels' && arg(1) == 'get-pane') {
-    if (isset($_GET['bp_original_q'])) {
-      $_GET['q'] = html_entity_decode($_GET['bp_original_q']);
-      unset($_GET['bp_original_q']);
-    }
   }
 }
