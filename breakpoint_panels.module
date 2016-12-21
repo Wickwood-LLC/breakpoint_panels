@@ -202,6 +202,12 @@ function breakpoint_panels_modal_popup($js = NULL, $plugin_name, $cache_key, $pi
   if (empty($form_state['executed'])) {
     $output = $modal_output;
   } else {
+    // Normally the pane object should reflect changes happend in breakpoint_panels_pane_settings_form_submit
+    // but it is not happenning as we now we have ajax callback.
+    // So, we take updated pane object back from $form_state.
+    // TODO: Remove this line after finding proper way to handle the issue.
+    $renderer->cache->display->content[$pid] = $form_state['pane'];
+
     panels_edit_cache_set($renderer->cache);
     $renderer->command_update_pane($pid);
     $renderer->commands[] = ctools_modal_command_dismiss();
@@ -220,9 +226,52 @@ function breakpoint_panels_modal_popup($js = NULL, $plugin_name, $cache_key, $pi
  */
 function breakpoint_panels_pane_settings_form($style_settings, $form_state) {
   $form = array();
-  $bps = breakpoint_panels_get_breakpoints();
+
+  $form['help'] = array(
+    '#type' => 'markup',
+    '#markup' => "Note that by default panes are displayed unless the display is disabled for a given breakpoint width range.  So if you do not have breakpoints that cover the entire range of possible screen widths starting from 0px and going to ∞ px in your selected Breakpoint Group, the pane will be displayed for any widths not explicitly disabled."
+  );
+
+  // As per https://www.drupal.org/node/1363174
+  $form['all_elements'] = array(
+    '#prefix' => '<div id="breakpoint-panels-settings-form-all-elements">',
+    '#suffix' => '</div>',
+  );
 
   $pane = $form_state['pane'];
+
+  $breakpoint_groups = breakpoints_breakpoint_group_load_all();
+
+  $bp_group_options = array(
+    '__none' => t('None (all breakpoints)'),
+  );
+
+  foreach ($breakpoint_groups as $breakpoint_group) {
+    $bp_group_options[$breakpoint_group->machine_name] = $breakpoint_group->name;
+  }
+
+  if (!empty($form_state['values']['breakpoints_group'])) {
+    $default_bp_group = $form_state['values']['breakpoints_group'];
+  }
+  else {
+    $default_bp_group = !empty($pane->configuration['breakpoints_group'])
+      ? $pane->configuration['breakpoints_group']
+      : '__none';
+  }
+  $bps = breakpoint_panels_get_breakpoints($default_bp_group);
+
+  $form['all_elements']['breakpoints_group'] = array(
+    '#title' => t('Group'),
+    '#type' => 'radios',
+    '#options' => $bp_group_options,
+    '#default_value' => $default_bp_group,
+    '#ajax' => array(
+      'callback' => 'breakpoint_panels_pane_settings_form_js',
+      'wrapper' => 'breakpoint-panels-settings-form-all-elements',
+      'method' => 'replace',
+      'effect' => 'fade',
+    ),
+  );
 
   // Loop through the breakpoints and check for existing settings.
   foreach ($bps as $bp) {
@@ -233,7 +282,7 @@ function breakpoint_panels_pane_settings_form($style_settings, $form_state) {
       }
     }
 
-    $form[$bp->breakpoint_panels_name] = array(
+    $form['all_elements'][$bp->breakpoint_panels_name] = array(
       '#type' => 'checkbox',
       '#title' => filter_xss(t('Display ' . $bp->name)),
       '#default_value' => $default,
@@ -249,23 +298,33 @@ function breakpoint_panels_pane_settings_form($style_settings, $form_state) {
 }
 
 /**
+ * Menu callback for change in Breakpoint group change.
+ * @see breakpoint_panels_pane_settings_form()
+ */
+function breakpoint_panels_pane_settings_form_js($form, $form_state) {
+  return $form['all_elements'];
+}
+
+/**
  * Settings form submission.
  *
  * Processes the modal popup settings form after the user has selected which
  * breakpoints a pane will be displayed.
  */
 function breakpoint_panels_pane_settings_form_submit(&$form, &$form_state) {
-  $bps = breakpoint_panels_get_breakpoints();
+  $bps = breakpoint_panels_get_breakpoints($form_state['values']['breakpoints_group']);
   $pane = $form_state['pane'];
 
+  $pane->configuration['breakpoints_group'] = $form_state['values']['breakpoints_group'];
   $pane->configuration['breakpoints'] = array();
   foreach ($bps as $bp) {
-    if (!$bp) {
+    if (!$bp || !isset($form['all_elements'][$bp->breakpoint_panels_name])) {
       continue;
     }
-    $pane->configuration['breakpoints'][$bp->breakpoint_panels_name] = $form[$bp->breakpoint_panels_name]['#value'];
+    $pane->configuration['breakpoints'][$bp->breakpoint_panels_name] = $form['all_elements'][$bp->breakpoint_panels_name]['#value'];
   }
   $form_state['executed'] = TRUE;
+  $form_state['pane'] = $pane;
   return;
 }
 
@@ -754,8 +813,9 @@ function _breakpoint_panels_get_display_and_handler($pid=NULL, $task=NULL, $subt
 
 /**
  * Returns list of all breakpoints with a CSS friendly name.
+ * @param string $group If sepcified, it will return breakpoints part of the group.
  */
-function breakpoint_panels_get_breakpoints() {
+function breakpoint_panels_get_breakpoints($group = NULL) {
   // Check the module configuration preference for which types to display as options.
   $types = variable_get('breakpoint_panels_show_types', 'all');
   if ($types == 'active') {
@@ -773,6 +833,15 @@ function breakpoint_panels_get_breakpoints() {
   }
   else {
     $breakpoints = breakpoints_breakpoint_load_all();
+  }
+
+  if (!empty($group) && $group !== '__none') {
+    $bp_group = breakpoints_breakpoint_group_load($group);
+    foreach ($breakpoints as $key => $bp) {
+      if (!in_array($bp->machine_name, $bp_group->breakpoints)) {
+        unset($breakpoints[$key]);
+      }
+    }
   }
 
   // For each breakpoint find a base name to use from the machine name, then make a css
