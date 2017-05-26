@@ -511,16 +511,7 @@ function breakpoint_panels_parse($query) {
   return count($point) ? $point : FALSE;
 }
 
-/**
- * Implements hook_panels_pane_content_alter().
- *
- * Checks for panes that have specific breakpoint settings and swaps their contents out for a placeholder,
- * that will later be filled in with AJAX if rendered on the screen size being viewed on.
- *
- * Some code here taken from / inspired by the ajax_pane project. Thank you to creaoy, twistor, and undertext.
- */
-function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $context, panels_renderer_standard $renderer, panels_display $display) {
-
+function breakpoint_panels_is_ajax_delivery($pane) {
   // Check if the processing is even required, if not return.
   if (
     !empty($pane->ajax_rendering)
@@ -529,11 +520,8 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
   ) {
     // This is either an AJAX call for the real content, there are no breakpoint settings defined,
     // or there is no valid pid on the pane, if that's the case nothing to do here, bail.
-    return;
+    return FALSE;
   }
-
-  // ensure we have Drupal.ajax
-  drupal_add_library('system', 'drupal.ajax');
 
   // Default ajax to TRUE, then prove otherwise.
   $use_ajax = FALSE;
@@ -555,8 +543,38 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
 
   // If ajax is not needed for this pane, nothing else to do here, bail.
   if (!$use_ajax) {
+    return FALSE;
+  }
+  
+  return TRUE;
+}
+
+function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $context, panels_renderer_standard $renderer, panels_display $display) {
+  if (!breakpoint_panels_is_ajax_delivery($pane)) {
     return;
   }
+  // Set a flag so to tell this same hook not do the placeholder swap
+  // when the pane is rendered via AJAX.
+  $content->use_ajax_render = TRUE;
+  
+  // Set value or hook_panels_panels_pane_output_alter() won't get called.
+  $content->content = 'It will be replaced anyway';
+}
+
+/**
+ * Implements hook_panels_panels_pane_output_alter().
+ *
+ * Checks for panes that have specific breakpoint settings and swaps their contents out for a placeholder,
+ * that will later be filled in with AJAX if rendered on the screen size being viewed on.
+ *
+ * Some code here taken from / inspired by the ajax_pane project. Thank you to creaoy, twistor, and undertext.
+ */
+function breakpoint_panels_panels_pane_output_alter(&$content, $pane, $args, $context, panels_renderer_standard $renderer, panels_display $display) {
+  if (!breakpoint_panels_is_ajax_delivery($pane)) {
+    return;
+  }
+  // ensure we have Drupal.ajax
+  drupal_add_library('system', 'drupal.ajax');
 
   // At this point we know we have a pane with breakpoint panels settings, so we need to
   // swap out its contents for a placeholder and the content will be be loaded after
@@ -617,10 +635,6 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
   // Create an ID for the pane to be assigned in the DOM.
   $id = uniqid('breakpoint-panels-pane-' . $pane->pid . '-');
 
-  // If the content has a title clear it out, it will be reloaded within the placeholder
-  // after the AJAX load.
-  unset($content->title);
-
   // Loop through the breakpoints that have been set and create a class for them.
   $classes = '';
   foreach ($pane->configuration['breakpoints'] as $bp => $val) {
@@ -633,6 +647,7 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
   $ipemessage = '';
   $css = '';
   $hides = array();
+  $bps = breakpoint_panels_get_breakpoints();
   // Loop through each breakpoint and check for if it needs added to the panes hidden styles.
   foreach ($bps as $bp) {
     // If the breakpoint setting is found and is set to false, then push it to the hidden array.
@@ -664,11 +679,7 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
     $data_query = '';
   }
   // Swap content out for a placeholder.
-  $content->content = '<div class="' . $classes . '" data-pane="' . $pane->pid . '">' . $ipemessage . '<div id="' . $id . '" class="bp-ajax-pane" data-src="' . $url . '" ' . $data_query . '></div></div>';
-
-  // Set a flag so to tell this same hook not do the placeholder swap
-  // when the pane is rendered via AJAX.
-  $content->use_ajax_render = TRUE;
+  $content = '<div class="' . $classes . '" data-pane="' . $pane->pid . '">' . $ipemessage . '<div id="' . $id . '" class="bp-ajax-pane" data-src="' . $url . '" ' . $data_query . '></div></div>';
 }
 
 /**
