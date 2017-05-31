@@ -558,7 +558,7 @@ function breakpoint_panels_is_ajax_delivery($pane) {
   if (!$use_ajax) {
     return FALSE;
   }
-  
+
   return TRUE;
 }
 
@@ -569,7 +569,7 @@ function breakpoint_panels_panels_pane_content_alter($content, $pane, $args, $co
   // Set a flag so to tell this same hook not do the placeholder swap
   // when the pane is rendered via AJAX.
   $content->use_ajax_render = TRUE;
-  
+
   // Set value or hook_panels_panels_pane_output_alter() won't get called.
   $content->content = 'It will be replaced anyway';
 }
@@ -909,5 +909,17 @@ function breakpoint_panels_form_views_exposed_form_alter(&$form, &$form_statet, 
   // 'breakpoint-panels/get-pane'.
   if ((isset($breakpoint_panels_ajax) && $breakpoint_panels_ajax) || (arg(0) == 'breakpoint-panels' && arg(1) == 'get-pane')) {
     $form['#action'] = '';
+  }
+}
+
+/**
+ * Implements hook_panels_pane_prerender().
+ */
+function breakpoint_panels_panels_pane_prerender($pane) {
+  if ($pane->type == 'views_panes') {
+    if (!breakpoint_panels_is_ajax_delivery($pane)) {
+      return;
+    }
+    $pane->breakpoint_active = TRUE;
   }
 }
