@@ -288,6 +288,18 @@ function breakpoint_panels_pane_settings_form($style_settings, $form_state) {
       '#default_value' => $default,
     );
   }
+  $form['all_elements']['rendering'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Rendering'),
+  );
+  $form['all_elements']['rendering']['breakpoint_pane_render_always'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Render always'),
+    '#description' => t('Normally content for a breakpoint enabled pane does not need to be prepared while the page is being executed because Breakpoint Panels will replace the panel content with a placeholder later. This placeholder will then be replaced via Ajax as required as per screen dimensions.<br>'
+      . 'That normal behavior is sufficient in most cases. However, sometimes panel content may have JavaScript behaviors that will not work properly in breakpoint enabled panes if content is not prepared while the page is being executed. For example a views slideshow needs to be prepared with the page itself in order to work properly. In these edge cases, you can enable this checkbox to fix such issues.<br/> '
+      . 'Note: This checkbox is disabled by default.'),
+    '#default_value' => isset($pane->configuration['breakpoint_pane_render_always']) ? $pane->configuration['breakpoint_pane_render_always'] : false,
+  );
 
   $form['submit'] = array(
     '#type' => 'submit',
@@ -323,6 +335,7 @@ function breakpoint_panels_pane_settings_form_submit(&$form, &$form_state) {
     }
     $pane->configuration['breakpoints'][$bp->breakpoint_panels_name] = $form['all_elements'][$bp->breakpoint_panels_name]['#value'];
   }
+  $pane->configuration['breakpoint_pane_render_always'] = $form_state['values']['breakpoint_pane_render_always'];
   $form_state['executed'] = TRUE;
   $form_state['pane'] = $pane;
   return;
