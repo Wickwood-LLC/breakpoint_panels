@@ -1,6 +1,7 @@
 name = Breakpoint Panels
-description = Display different panes for breakpoints
+description = Display different panes for breakpoints. WWM version of module to fix configuration saving and make it flexible to work with IPE. Also to support breakpoint groups.
 core = 7.x
+version = 2.x-dev-wwm
 dependencies[] = ctools
 dependencies[] = panels
 dependencies[] = libraries
