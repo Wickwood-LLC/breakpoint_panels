@@ -729,6 +729,11 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '', $element_i
 
   $did = !empty($context['did']) ? $context['did'] : 0;
 
+  // Initialize emtpy array if not set.
+  if (!isset($context['args'])) {
+    $context['args'] = array();
+  }
+
   // Load the page and the task object.
   $task = page_manager_get_task($task_id);
   $subtask = page_manager_get_task_subtask($task, $subtask_id);
