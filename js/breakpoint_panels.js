@@ -194,9 +194,15 @@
       var breakpoints = settings['breakpoints'];
 
       var parent_el = element.parent();
+      var bp_group = parent_el.attr('data-bp-group');
       // var this_shown = false;
       for (var breakpoint in breakpoints) {
-       // var cur_bp = settings['breakpoints'][key];
+        // var cur_bp = settings['breakpoints'][key];
+        // Determine whether breakpoint belongs to the group where pane is configured.
+        // If not, then no need think about loading content via Ajax.
+        if (typeof bp_group !== typeof undefined && bp_group !== false && breakpoints[breakpoint]['groups'].indexOf(bp_group) < 0) {
+          continue;
+        }
         if (
           !parent_el.hasClass('hide-' + breakpoints[breakpoint]['css'])
           || settings['loadhidden']

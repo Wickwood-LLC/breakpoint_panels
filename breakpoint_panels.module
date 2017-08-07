@@ -412,6 +412,7 @@ function breakpoint_panels_get_config() {
   );
 
   $bps = breakpoint_panels_get_breakpoints();
+  $groups = breakpoints_breakpoint_group_load_all();
 
   // Loop through each breakpoint and parse its conditions.
   foreach ($bps as $breakpoint) {
@@ -437,6 +438,13 @@ function breakpoint_panels_get_config() {
       $conf['breakpoints'][$breakpoint->machine_name] = $point;
       $conf['breakpoints'][$breakpoint->machine_name]['bp'] = $breakpoint->breakpoint;
       $conf['breakpoints'][$breakpoint->machine_name]['css'] = $breakpoint->breakpoint_panels_name;
+      // Prepare group names to which this breakpoint belongs to.
+      $conf['breakpoints'][$breakpoint->machine_name]['groups'] = array();
+      foreach ($groups as $group_name => $group) {
+        if (in_array($breakpoint->machine_name, $group->breakpoints)) {
+          $conf['breakpoints'][$breakpoint->machine_name]['groups'][] = $group_name;
+        }
+      }
     }
   }
 
@@ -691,8 +699,16 @@ function breakpoint_panels_panels_pane_output_alter(&$content, $pane, $args, $co
   else {
     $data_query = '';
   }
+  // Preapre breakpoint group attributefor the wrapper.
+  // This group name will be considered while determinining whether to load pane via ajax.
+  if (!empty($pane->configuration['breakpoints_group'])) {
+    $group_attribute = 'data-bp-group="' . $pane->configuration['breakpoints_group'] . '"';
+  }
+  else {
+    $group_attribute = '';
+  }
   // Swap content out for a placeholder.
-  $content = '<div class="' . $classes . '" data-pane="' . $pane->pid . '">' . $ipemessage . '<div id="' . $id . '" class="bp-ajax-pane" data-src="' . $url . '" ' . $data_query . '></div></div>';
+  $content = '<div class="' . $classes . '" data-pane="' . $pane->pid . '" ' . $group_attribute .'>' . $ipemessage . '<div id="' . $id . '" class="bp-ajax-pane" data-src="' . $url . '" ' . $data_query . '></div></div>';
 }
 
 /**
