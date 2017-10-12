@@ -10,3 +10,6 @@ dependencies[] = breakpoints
 files[] = breakpoint_panels.module
 configure = admin/config/user-interface/breakpoint_panels
 package = "User Interface"
+
+version = "7.x-2.4"
+project = "breakpoint_panels"
