@@ -49,6 +49,7 @@
       // Do a first manual update to catch the current window dimensions.
       this.onResize();
 
+      var breakpoint_panes = [];
       // For each AJAX pane check if it should be loaded and register enquire match.
       $('.bp-ajax-pane').each(function () {
         var element = $(this);
@@ -68,8 +69,13 @@
 
         // Setup the enquire.js AJAX loading based on breakpoints.
         var url = element.attr('data-src');
-        that.checkForLoad(url, element);
+        if (that.checkForLoad(url, element)) {
+          breakpoint_panes.push({url: url, element: element});
+        }
       });
+      if (breakpoint_panes.length) {
+        this.fetch_panes(breakpoint_panes);
+      }
 
     },
 
@@ -208,19 +214,20 @@
           || settings['loadhidden']
           || (settings['adminload'] && settings['isloggedin'])
         ) {
-          if (settings['hasEnquire']) {
-            var that = this;
-            // If at any point the media query is met, make sure the pane contents are loaded via AJAX.
-            enquire.register(breakpoints[breakpoint]['bp'], {
-              match: function () {
-                that.fetch_pane(url, element);
-              }
-            });
-          }
-          else {
-            // Fallback pseudo-gracefully if enquire.js was not found.
-            this.fetch_pane(url, element);
-          }
+//          if (settings['hasEnquire']) {
+//            var that = this;
+//            // If at any point the media query is met, make sure the pane contents are loaded via AJAX.
+//            enquire.register(breakpoints[breakpoint]['bp'], {
+//              match: function () {
+//                that.fetch_pane(url, element);
+//              }
+//            });
+//          }
+//          else {
+//            // Fallback pseudo-gracefully if enquire.js was not found.
+//            this.fetch_pane(url, element);
+//          }
+            return true;
         }
       }
 
@@ -306,6 +313,51 @@
         element.addClass('processed');
       }
 
+    },
+
+    fetch_panes: function (breakpoint_panes) {
+      var panes_submit_data = [];
+      var base;
+      $.each(breakpoint_panes, function(index, pane){
+        var element = pane.element;
+        var url = pane.url;
+        var submit_data = {};
+        /**
+        * Does an AJAX request for the pane contents if it has not yet been loaded.
+        */
+        if (!element.hasClass('processed')) {
+         var element_settings = {};
+         //element_settings.progress = {};
+         //element_settings.url = url + '/' + element.attr('id');
+         submit_data.url = url + '/' + element.attr('id');
+         // 'data-query' attribute will be present if pane is view pane.
+         // Query parameters to be passed as part of URL. So, correct filtering
+         // will be applied.
+         var data_query = $(element).attr('data-query');
+         var params = {};
+         if (typeof data_query !== typeof undefined && data_query !== false) {
+           params = JSON.parse($('<textarea />').html(data_query).text())
+         }
+         params.bp_original_q = encodeURI(Drupal.settings.breakpoint_panels_breakpoint.q);
+         //element_settings.url = element_settings.url + '?' + $.param(params);
+         submit_data.url = submit_data.url + '?' + $.param(params);
+         //element_settings.event = 'click';
+         base = element.attr('id');
+         //var ajax = new Drupal.ajax(base, element, element_settings);
+         //ajax.eventResponse(element, 'click');
+         element.addClass('processed');
+         panes_submit_data.push(submit_data);
+        }
+      });
+      if (panes_submit_data.length) {
+        var ajax_settings = {};
+        ajax_settings.url = 'breakpoint-panels/get-panes';
+        ajax_settings.submit = {
+          panes: panes_submit_data
+        };
+        var ajax = new Drupal.ajax(base, $('body'), ajax_settings);
+        ajax.eventResponse($('body'), 'click');
+      }
     }
 
   };
