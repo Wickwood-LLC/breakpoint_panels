@@ -1,17 +1,6 @@
 (function ($) {
-  $.assocArraySize = function(obj) {
-    // http://stackoverflow.com/a/6700/11236
-    var size = 0, key;
-    for (key in obj) {
-      if (obj.hasOwnProperty(key)) size++;
-    }
-    return size;
-  };
-  
   // Update the window dimensions on each resize.
   $(window).on("resize", function () {
-//    $( "body" ).prepend( "<div>" + $( window ).width() + "</div>" );
-  //console.log('Resizing ' + new Date());
     Drupal.behaviors.breakpoint_panels.onResize();
   });
       
@@ -77,17 +66,9 @@
           }
         }
 
-        // Setup the enquire.js AJAX loading based on breakpoints.
-//        var url = element.attr('data-src');
-//        if (that.checkForLoad(url, element)) {
-//          breakpoint_panes.push({url: url, element: element});
-//        }
         that.checkForLoad(element.attr('data-src'), element);
-        //that.unprocessed_panels[element.attr('id')] = element;
       });
-//      if (breakpoint_panes.length) {
-//        this.fetch_panes(breakpoint_panes);
-//      }
+
       // Do a first manual update to catch the current window dimensions.
       this.onResize();
     },
@@ -105,13 +86,11 @@
       this.width = $window.width();
       this.height = $window.height()
       
-      //if ($.assocArraySize(this.unprocessed_panels)) {
-        $.each(this.breakpoint_panes, function(bp, pane_ids) {
-          if (matchMedia(bp).matches) {
-            that.fetch_panes(bp);
-          }
-        });
-      //}
+      $.each(this.breakpoint_panes, function(bp, pane_ids) {
+        if (matchMedia(bp).matches) {
+          that.fetch_panes(bp);
+        }
+      });
     },
 
     checkForReload: function () {
@@ -222,7 +201,6 @@
 
       var parent_el = element.parent();
       var bp_group = parent_el.attr('data-bp-group');
-      // var this_shown = false;
       for (var breakpoint in breakpoints) {
         // Determine whether breakpoint belongs to the group where pane is configured.
         // If not, then no need think about loading content via Ajax.
@@ -238,7 +216,6 @@
             this.breakpoint_panes[breakpoints[breakpoint]['bp']] = []
           }
           this.breakpoint_panes[breakpoints[breakpoint]['bp']].push(element.attr('id'));
-          //return true;
         }
       }
 
@@ -284,7 +261,6 @@
           }
           else {
             for (var breakpoint_u in breakpoints) {
-              // $('.hide-' + breakpoints[breakpoint_u]['css']).show();
               if (settings['hasEnquire'] == true) {
                 enquire.unregister(breakpoints[breakpoint_u]['bp'], breakpoints[breakpoint_u]['toggle_handler']);
               }
@@ -304,12 +280,11 @@
       var base;
       $.each(this.breakpoint_panes[bp], function(index, id){
         var element = $('#' + id);
-        var url = element.attr('data-src');
-        var submit_data = {};
-        /**
-        * Does an AJAX request for the pane contents if it has not yet been loaded.
-        */
-        if (!element.hasClass('processed')) {
+        // Does an AJAX request for the pane contents if it has not yet been loaded.
+        // Need to check if element does exist since it might have replaced already.
+        if (element.length && !element.hasClass('processed')) {
+          var url = element.attr('data-src');
+          var submit_data = {};
           submit_data.url = url + '/' + element.attr('id');
           // 'data-query' attribute will be present if pane is view pane.
           // Query parameters to be passed as part of URL. So, correct filtering
