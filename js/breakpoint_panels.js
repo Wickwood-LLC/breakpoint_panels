@@ -5,7 +5,7 @@
   });
       
   Drupal.behaviors.breakpoint_panels = {
-    //unprocessed_panels: {},
+    timer_id: null,
     breakpoint_panes: {},
 
     attach: function (context) {    
@@ -77,7 +77,6 @@
       /**
        * Updates the objects height/width and checks if reloading of the page is required.
        */
-      console.log('Resizing ' + new Date());
       var that = this;
       if (this.width && this.height) {
         this.checkForReload();
@@ -86,11 +85,15 @@
       this.width = $window.width();
       this.height = $window.height()
       
-      $.each(this.breakpoint_panes, function(bp, pane_ids) {
-        if (matchMedia(bp).matches) {
-          that.fetch_panes(bp);
-        }
-      });
+      // Avoid too much calling of function.
+      clearTimeout(this.timer_id);
+      this.timer_id = setTimeout(function() {
+        $.each(that.breakpoint_panes, function(bp, pane_ids) {
+          if (matchMedia(bp).matches) {
+            that.fetch_panes(bp);
+          }
+        });
+      }, 300);
     },
 
     checkForReload: function () {
