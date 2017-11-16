@@ -614,9 +614,9 @@ function breakpoint_panels_panels_pane_output_alter(&$content, $pane, $args, $co
     drupal_add_js($path . '/matchMedia.js');
     drupal_add_js($path . '/matchMedia.addListener.js');
   }
-  if ($path = libraries_get_path('enquire.js')) {
-    drupal_add_js($path . '/enquire.min.js');
-  }
+//  if ($path = libraries_get_path('enquire.js')) {
+//    drupal_add_js($path . '/enquire.min.js');
+//  }
 
   // Load the modules .js file on the page
   drupal_add_js(drupal_get_path('module', 'breakpoint_panels') . '/js/breakpoint_panels.js');
