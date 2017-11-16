@@ -728,7 +728,7 @@ function breakpoint_panels_get_panes() {
   ctools_include('context');
   ctools_include('context-task-handler');
   $old_q = $_GET['q'];
-  
+
   $commands = array();
   foreach ($_POST['panes'] as $pane_data) {
     $parsed_url = parse_url($pane_data['url']);
@@ -738,7 +738,7 @@ function breakpoint_panels_get_panes() {
     // Earlier it was coded under breakpoint_panels_views_pre_execute().
     // See git commit: 7eba93abbfb4c38b43015bd84bc6f1c5821aae2a
     $_GET['q'] = html_entity_decode($get_params['bp_original_q']);
-    
+
     $encoded_context = $path_parts[2];
     $element_id = $path_parts[3];
 

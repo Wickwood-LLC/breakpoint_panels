@@ -3,12 +3,12 @@
   $(window).on("resize", function () {
     Drupal.behaviors.breakpoint_panels.onResize();
   });
-      
+
   Drupal.behaviors.breakpoint_panels = {
     timer_id: null,
     breakpoint_panes: {},
 
-    attach: function (context) {    
+    attach: function (context) {
       /**
        * Initializes breakpoint panels listeners and handling.
        */
@@ -84,7 +84,7 @@
       var $window = $(window);
       this.width = $window.width();
       this.height = $window.height()
-      
+
       // Avoid too much calling of function.
       clearTimeout(this.timer_id);
       this.timer_id = setTimeout(function() {
