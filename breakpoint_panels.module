@@ -30,15 +30,6 @@ function breakpoint_panels_menu() {
     'theme callback' => 'ajax_base_page_theme',
   );
 
-  // Ajax rendering of a specific pane.
-  $items['breakpoint-panels/get-pane/%'] = array(
-    'title' => 'Breakpoint Panels AJAX pane handler',
-    'page callback' => 'breakpoint_panels_panels_pane_handler',
-    'page arguments' => array(2, 3),
-    'access callback' => TRUE,
-    'delivery callback' => 'breakpoint_panels_ajax_deliver',
-    'type' => MENU_CALLBACK,
-  );
   $items['breakpoint-panels/get-panes'] = array(
     'title' => 'Breakpoint Panels AJAX pane handler',
     'page callback' => 'breakpoint_panels_get_panes',
@@ -659,7 +650,7 @@ function breakpoint_panels_panels_pane_output_alter(&$content, $pane, $args, $co
 
   // Serailize and encode the arguments needed to rebuild the context after an
   // AJAX request asks for this pane's contents. Make this into a URL for the AJAX call.
-  $url = 'breakpoint-panels/get-pane/' . base64_encode(serialize($pass_context));
+  $url = 'breakpoint-panels/get-panes/' . base64_encode(serialize($pass_context));
 
   // Create an ID for the pane to be assigned in the DOM.
   $id = uniqid('breakpoint-panels-pane-' . $pane->pid . '-');
@@ -720,107 +711,7 @@ function breakpoint_panels_panels_pane_output_alter(&$content, $pane, $args, $co
 }
 
 /**
- * Menu handler to serve individual panel-panes via AJAX.
- *
- * If the pane uses context like with panelizer it can be passed as a base64 encoded serialized
- * array.
- */
-function breakpoint_panels_panels_pane_handler($encoded_context = '', $element_id='') {
-  // Earlier it was coded under breakpoint_panels_views_pre_execute().
-  // See git commit: 7eba93abbfb4c38b43015bd84bc6f1c5821aae2a
-  if (isset($_GET['bp_original_q'])) {
-    $_GET['q'] = html_entity_decode($_GET['bp_original_q']);
-    unset($_GET['bp_original_q']);
-  }
-
-  // Make sure required ctools functions/methods will be available.
-  ctools_include('plugins', 'panels');
-  ctools_include('content');
-  ctools_include('context');
-  ctools_include('context-task-handler');
-  // todo: may be able to better accomodate a more universal context support.
-  // Check for a context and decode it.
-  $context = array();
-  if (!empty($encoded_context)) {
-    $context = unserialize(base64_decode($encoded_context));
-  }
-  $task_id = $context['task'];
-  $subtask_id = isset($context['subtask']) ? $context['subtask'] : '';
-
-  // @todo Decide whether we should throw a 404 given that we have not enough
-  //   context.
-  $pid = !empty($context['pid']) ? $context['pid'] : 0;
-
-  $did = !empty($context['did']) ? $context['did'] : 0;
-
-  // Initialize emtpy array if not set.
-  if (!isset($context['args'])) {
-    $context['args'] = array();
-  }
-
-  // Load the page and the task object.
-  $task = page_manager_get_task($task_id);
-  $subtask = page_manager_get_task_subtask($task, $subtask_id);
-
-  $contexts = ctools_context_handler_get_task_contexts($task, $subtask ? $subtask : array(), $context['args']);
-
-  list($display, $handler) = _breakpoint_panels_get_display_and_handler($pid, $task, $subtask_id, $contexts, $context['args'], $did);
-
-  // If the pane uses panelizer then we need to load the context of the entity/node being viewed.
-  if (!empty($context['panelizer'])) {
-    $display->context['panelizer'] = new ctools_context;
-    // Load a node for context. This is needed for entity field rendering on a panelizer page.
-    if (
-      !empty($context['panelizer_argument'])
-      && is_numeric($context['panelizer_argument'])
-      && !empty($context['panelizer_keyword'])
-    ) {
-      if (isset($display->args) && is_array($display->args)) {
-        $display->args[] = $context['panelizer_argument'];
-      }
-      else {
-        $display->args = array($context['panelizer_argument']);
-      }
-
-      if ($context['panelizer_keyword'] == 'node') {
-        $display->context['panelizer']->data = node_load($context['panelizer_argument']);
-      }
-    }
-  }
-
-  // Find the pane.
-  $pane = $display->content[$pid];
-
-  // Set flag so that we don't rewrite content.
-  $pane->ajax_rendering = TRUE;
-
-  if (!empty($context['args'])) {
-    $display->context = ctools_context_handler_get_handler_contexts($contexts, $handler);
-    $display->args = $context['args'];
-  }
-
-  // Find the renderer being used for this pane.
-  $renderer = panels_get_renderer_handler($display->renderer, $display);
-
-  // Render the new content.
-  $content = $renderer->render_pane_content($pane);
-
-  // Setup the variables array and theme it with the panes_pane template.
-  $variables = array(
-    'content' => $content,
-    'pane' => $pane,
-    'display' => $display,
-  );
-
-  $replace = theme('panels_pane', $variables);
-  $commands = array();
-  $commands[] = ajax_command_replace('#' . $element_id, $replace);
-  $page = array('#type' => 'ajax', '#commands' => $commands);
-  return $page;
-}
-
-/**
- * Menu handler to serve individual panel-panes via AJAX.
+ * Menu handler to serve panel-panes via AJAX.
  *
  * If the pane uses context like with panelizer it can be passed as a base64 encoded serialized
  * array.
@@ -828,7 +719,7 @@ function breakpoint_panels_panels_pane_handler($encoded_context = '', $element_i
 function breakpoint_panels_get_panes() {
   if (empty($_POST['panes'])) {
     // TODO: Proper response.
-    return;
+    return array();
   }
 
   // Make sure required ctools functions/methods will be available.
@@ -928,7 +819,9 @@ function breakpoint_panels_get_panes() {
     $replace = theme('panels_pane', $variables);
     $commands[] = ajax_command_replace('#' . $element_id, $replace);
   }
+  // Requestore original query params.
   $_GET['q'] = $old_q;
+
   $page = array('#type' => 'ajax', '#commands' => $commands);
   return $page;
 }
@@ -1033,7 +926,7 @@ function breakpoint_panels_get_breakpoints($group = NULL) {
  */
 function breakpoint_panels_boot() {
   global $breakpoint_panels_ajax;
-  if (arg(0) == 'breakpoint-panels' && arg(1) == 'get-pane') {
+  if (arg(0) == 'breakpoint-panels' && arg(1) == 'get-panes') {
     // Prevent ovelay JS and CSS from loading when processing get-page Ajax requests.
     overlay_set_mode('none');
     // Set global flag indicating that breakpoint_panel ajax request processing
@@ -1049,8 +942,8 @@ function breakpoint_panels_form_views_exposed_form_alter(&$form, &$form_statet, 
   global $breakpoint_panels_ajax;
   // Clear action path views exposed form when views are rendered via breakpoint
   // panels get-pane ajax request. Or exposed form will get submitted to
-  // 'breakpoint-panels/get-pane'.
-  if ((isset($breakpoint_panels_ajax) && $breakpoint_panels_ajax) || (arg(0) == 'breakpoint-panels' && arg(1) == 'get-pane')) {
+  // 'breakpoint-panels/get-panes'.
+  if ((isset($breakpoint_panels_ajax) && $breakpoint_panels_ajax) || (arg(0) == 'breakpoint-panels' && arg(1) == 'get-panes')) {
     $form['#action'] = '';
   }
 }
