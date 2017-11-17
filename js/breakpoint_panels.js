@@ -5,8 +5,8 @@
   });
 
   Drupal.behaviors.breakpoint_panels = {
-    timer_id: null,
     breakpoint_panes: {},
+    breakpoint_handler_exist: [],
 
     attach: function (context) {
       /**
@@ -48,7 +48,6 @@
         that.checkForEditing();
       });
 
-      //var breakpoint_panes = [];
       // For each AJAX pane check if it should be loaded and register enquire match.
       $('.bp-ajax-pane', context).once('bp', function () {
         var element = $(this);
@@ -66,7 +65,28 @@
           }
         }
 
-        that.checkForLoad(element.attr('data-src'), element);
+        var breakpoints = that.identifyBreakpoints(element);
+        var id = element.attr('id');
+        $.each(breakpoints, function(index, bp) {
+          if (!that.breakpoint_panes[bp]) {
+            that.breakpoint_panes[bp] = []
+          }
+          that.breakpoint_panes[bp].push(id);
+        })
+      });
+
+      $.each(this.breakpoint_panes, function(bp){
+        if (that.breakpoint_handler_exist.indexOf(bp) < 0) {
+          enquire.register(bp, {
+            breakpoint: bp,
+            match: function() {
+              if (that.breakpoint_panes[this.breakpoint] && that.breakpoint_panes[this.breakpoint].length) {
+                that.fetch_panes(this.breakpoint);
+              }
+            }
+          });
+          that.breakpoint_handler_exist.push(bp);
+        }
       });
 
       // Do a first manual update to catch the current window dimensions.
@@ -84,16 +104,6 @@
       var $window = $(window);
       this.width = $window.width();
       this.height = $window.height()
-
-      // Avoid too much calling of function.
-      clearTimeout(this.timer_id);
-      this.timer_id = setTimeout(function() {
-        $.each(that.breakpoint_panes, function(bp, pane_ids) {
-          if (matchMedia(bp).matches) {
-            that.fetch_panes(bp);
-          }
-        });
-      }, 300);
     },
 
     checkForReload: function () {
@@ -194,7 +204,7 @@
 
     },
 
-    checkForLoad: function (url, element) {
+    identifyBreakpoints: function (element) {
       /**
        * Checks if a pane should be loaded given the current screen size.
        */
@@ -204,6 +214,7 @@
 
       var parent_el = element.parent();
       var bp_group = parent_el.attr('data-bp-group');
+      var pane_breakpoints = [];
       for (var breakpoint in breakpoints) {
         // Determine whether breakpoint belongs to the group where pane is configured.
         // If not, then no need think about loading content via Ajax.
@@ -215,13 +226,10 @@
           || settings['loadhidden']
           || (settings['adminload'] && settings['isloggedin'])
         ) {
-          if (!this.breakpoint_panes[breakpoints[breakpoint]['bp']]) {
-            this.breakpoint_panes[breakpoints[breakpoint]['bp']] = []
-          }
-          this.breakpoint_panes[breakpoints[breakpoint]['bp']].push(element.attr('id'));
+          pane_breakpoints.push(breakpoints[breakpoint]['bp']);
         }
       }
-
+      return pane_breakpoints;
     },
 
     checkForEditing: function (x) {
@@ -304,8 +312,9 @@
           panes_submit_data.push(submit_data);
         }
       });
-      // Items for the breakpoint are loaded. Thus remove them from list.
-      delete this.breakpoint_panes[bp];
+      // Clear the pane ids we processed.
+      this.breakpoint_panes[bp] = [];
+
       if (panes_submit_data.length) {
         var ajax_settings = {};
         ajax_settings.url = 'breakpoint-panels/get-panes';
