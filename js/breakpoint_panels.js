@@ -317,7 +317,7 @@
 
       if (panes_submit_data.length) {
         var ajax_settings = {};
-        ajax_settings.url = 'breakpoint-panels/get-panes';
+        ajax_settings.url = Drupal.settings.basePath + 'breakpoint-panels/get-panes';
         ajax_settings.submit = {
           panes: panes_submit_data
         };
