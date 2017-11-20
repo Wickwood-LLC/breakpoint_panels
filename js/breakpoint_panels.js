@@ -75,21 +75,33 @@
         })
       });
 
+      var panes_to_fetch_now = [];
       $.each(this.breakpoint_panes, function(bp){
         if (that.breakpoint_handler_exist.indexOf(bp) < 0) {
-          enquire.register(bp, {
-            breakpoint: bp,
-            match: function() {
-              if (that.breakpoint_panes[this.breakpoint] && that.breakpoint_panes[this.breakpoint].length) {
-                that.fetch_panes(that.breakpoint_panes[this.breakpoint]);
-                // Clear the pane ids we processed.
-                that.breakpoint_panes[this.breakpoint] = [];
+          if (!matchMedia(bp).matches) {
+            enquire.register(bp, {
+              breakpoint: bp,
+              match: function() {
+                if (that.breakpoint_panes[this.breakpoint] && that.breakpoint_panes[this.breakpoint].length) {
+                  that.fetch_panes(that.breakpoint_panes[this.breakpoint]);
+                  // Clear the pane ids we processed.
+                  that.breakpoint_panes[this.breakpoint] = [];
+                }
               }
-            }
-          });
-          that.breakpoint_handler_exist.push(bp);
+            });
+            that.breakpoint_handler_exist.push(bp);
+          }
+          else {
+            // Collect these pane ids to process now.
+            panes_to_fetch_now.push.apply(panes_to_fetch_now, that.breakpoint_panes[bp]);
+
+            that.breakpoint_panes[bp] = [];
+          }
         }
       });
+      if (panes_to_fetch_now.length) {
+        this.fetch_panes(panes_to_fetch_now);
+      }
 
       // Do a first manual update to catch the current window dimensions.
       this.onResize();
