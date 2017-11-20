@@ -81,7 +81,9 @@
             breakpoint: bp,
             match: function() {
               if (that.breakpoint_panes[this.breakpoint] && that.breakpoint_panes[this.breakpoint].length) {
-                that.fetch_panes(this.breakpoint);
+                that.fetch_panes(that.breakpoint_panes[this.breakpoint]);
+                // Clear the pane ids we processed.
+                that.breakpoint_panes[this.breakpoint] = [];
               }
             }
           });
@@ -286,10 +288,10 @@
 
     },
 
-    fetch_panes: function (bp) {
+    fetch_panes: function (pane_ids) {
       var panes_submit_data = [];
       var base;
-      $.each(this.breakpoint_panes[bp], function(index, id){
+      $.each(pane_ids, function(index, id){
         var element = $('#' + id);
         // Does an AJAX request for the pane contents if it has not yet been loaded.
         // Need to check if element does exist since it might have replaced already.
@@ -312,8 +314,6 @@
           panes_submit_data.push(submit_data);
         }
       });
-      // Clear the pane ids we processed.
-      this.breakpoint_panes[bp] = [];
 
       if (panes_submit_data.length) {
         var ajax_settings = {};
